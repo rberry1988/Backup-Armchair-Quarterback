@@ -35,8 +35,10 @@ export function StartSitTab({ leagueId }: { leagueId: number }) {
           </tr>
         </thead>
         <tbody>
-          {data.lineup.map((row) => (
-            <tr key={row.slot_id} className={row.swap_recommended ? "swap-row" : ""}>
+          {/* Keyed by position too: most leagues start two RBs or three WRs,
+              so slot_id alone repeats across rows. */}
+          {data.lineup.map((row, i) => (
+            <tr key={`${row.slot_id}-${i}`} className={row.swap_recommended ? "swap-row" : ""}>
               <td>{row.slot}</td>
               <td>
                 {row.current_starter.name}

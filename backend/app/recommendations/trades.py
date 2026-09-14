@@ -12,12 +12,13 @@ whose depth/need profile is a mirror image of yours are good partners.
 from __future__ import annotations
 
 import statistics
+from collections import defaultdict
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.fantasypros_client import get_expert_context
-from app.models import League, Player, PlayerWeekStat, Team
-from app.recommendations.common import points_or_default, roster_with_players
+from app.models import League, Player, PlayerWeekStat, RosterEntry, Team
+from app.recommendations.common import points_or_default
 
 POSITIONS = ["QB", "RB", "WR", "TE", "K", "D/ST"]
 
@@ -48,8 +49,7 @@ def _starters_needed(roster_slot_counts: dict) -> dict[str, float]:
     return needed
 
 
-def _team_position_profile(db: Session, team: Team, starters_needed: dict[str, float]) -> dict:
-    entries = roster_with_players(db, team.id)
+def _profile_from_entries(entries: list[RosterEntry], starters_needed: dict[str, float]) -> dict:
     by_position: dict[str, list[float]] = {pos: [] for pos in POSITIONS}
     for entry in entries:
         by_position.setdefault(entry.player.position, []).append(points_or_default(entry.player))
@@ -64,6 +64,25 @@ def _team_position_profile(db: Session, team: Team, starters_needed: dict[str, f
     return profile
 
 
+def _team_position_profiles(db: Session, teams: list[Team], starters_needed: dict[str, float]) -> dict[int, dict]:
+    """Every team's positional profile, loaded in two queries rather than
+    two per team — this runs over the whole league, so a per-team fetch
+    here was the app's heaviest query pattern."""
+    entries = (
+        db.query(RosterEntry)
+        .filter(RosterEntry.team_id.in_([team.id for team in teams]))
+        .options(selectinload(RosterEntry.player))
+        .all()
+    )
+    entries_by_team: dict[int, list[RosterEntry]] = defaultdict(list)
+    for entry in entries:
+        entries_by_team[entry.team_id].append(entry)
+
+    return {
+        team.id: _profile_from_entries(entries_by_team.get(team.id, []), starters_needed) for team in teams
+    }
+
+
 def get_trade_suggestions(db: Session, league_id: int, my_team_id: int) -> dict:
     league = db.get(League, league_id)
     if league is None:
@@ -75,7 +94,7 @@ def get_trade_suggestions(db: Session, league_id: int, my_team_id: int) -> dict:
         return {"error": "team_not_found"}
 
     starters_needed = _starters_needed(league.roster_slot_counts or {})
-    profiles = {team.id: _team_position_profile(db, team, starters_needed) for team in teams}
+    profiles = _team_position_profiles(db, teams, starters_needed)
     my_profile = profiles[my_team.id]
 
     needs = []
@@ -226,7 +245,7 @@ def grade_trade(
     # team's profile — including bench depth and partner suggestions we
     # don't need — twice over).
     starters_needed = _starters_needed(league.roster_slot_counts or {})
-    profiles = {team.id: _team_position_profile(db, team, starters_needed) for team in teams}
+    profiles = _team_position_profiles(db, teams, starters_needed)
 
     def needs_for(team_id: int) -> set[str]:
         needs = set()

@@ -9,7 +9,7 @@ a mental join. This does that join.
 
 from __future__ import annotations
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.depth_charts import compute_depth_charts
 from app.espn_constants import pro_team_abbr
@@ -38,7 +38,7 @@ def get_roster_alerts(db: Session, league_id: int, my_team_id: int) -> dict:
     entries = (
         db.query(RosterEntry)
         .filter(RosterEntry.team_id == team.id)
-        .join(Player, RosterEntry.player_id == Player.id)
+        .options(selectinload(RosterEntry.player))
         .all()
     )
 

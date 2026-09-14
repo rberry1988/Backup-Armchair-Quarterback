@@ -214,9 +214,27 @@ selections or synced data.
   scale sites like FantasyPros use — treat it as a sanity check, not a
   verdict.
 - Login sessions are JWTs signed with `JWT_SECRET` (set in `backend/.env`).
-  Change it from the placeholder before letting anyone other than you use
-  the app — anyone who knows the secret can forge a session for any user
-  id. Sessions last 2 weeks by default (`JWT_EXPIRE_MINUTES`).
+  If it's unset or still the placeholder, the app generates a random key on
+  first start and stores it at `backend/data/jwt_secret` (mode 0600) rather
+  than signing with a value published in this repo — so sessions are never
+  protected by a guessable secret, but set `JWT_SECRET` yourself if you want
+  to control it (e.g. to share one key across machines). Sessions last 2
+  weeks by default (`JWT_EXPIRE_MINUTES`) and can't be revoked early: logging
+  out just discards the browser's copy, so a leaked token stays valid until
+  it expires or you change the signing key.
+- Repeated failed logins for the same email from the same address are
+  throttled — 8 failures in 15 minutes returns `429` with a `Retry-After`
+  until the window passes, which is enough to make online password guessing
+  impractical. It's tracked in memory per worker (the deployed service runs
+  two), so the real ceiling is roughly double, and it resets on restart.
+- FastAPI's interactive docs (`/docs`, `/redoc`, `/openapi.json`) are off
+  unless you set `ENABLE_API_DOCS=true`. Every endpoint requires auth either
+  way; this just avoids publishing the API surface to everyone on your
+  network.
+- SQLite runs in WAL mode with a 30s busy timeout. A league sync is one long
+  write transaction, and the deployed service runs two uvicorn workers — on
+  the default rollback journal, a request landing mid-sync would fail with
+  `database is locked`. WAL lets those reads proceed instead.
 - Matchup difficulty prefers real average PPR points-allowed-per-game by
   position (computed from nflverse's weekly stats, using only games played
   so far this season), ranked league-wide — fewer points allowed by a

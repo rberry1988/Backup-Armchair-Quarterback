@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import Player, RosterEntry, Team
 
@@ -20,9 +20,16 @@ def get_my_team(db: Session, league_id: int, my_team_id: int) -> Team | None:
 
 
 def roster_with_players(db: Session, team_id: int) -> list[RosterEntry]:
+    """Roster entries with their Player preloaded.
+
+    selectinload (not a plain join) is the point here: joining only filters
+    the rows, it doesn't populate the relationship, so every `entry.player`
+    would otherwise fire its own SELECT — one per roster spot, on every
+    caller of this helper.
+    """
     return (
         db.query(RosterEntry)
         .filter(RosterEntry.team_id == team_id)
-        .join(Player)
+        .options(selectinload(RosterEntry.player))
         .all()
     )

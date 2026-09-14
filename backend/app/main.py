@@ -1,10 +1,21 @@
-from fastapi import Depends, FastAPI, HTTPException
+from collections import defaultdict
+
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.alerts import get_roster_alerts
-from app.auth import create_access_token, get_current_user, hash_password, verify_password
+from app.auth import (
+    check_login_allowed,
+    clear_failed_logins,
+    client_ip,
+    create_access_token,
+    get_current_user,
+    hash_password,
+    record_failed_login,
+    verify_password,
+)
 from app.bench_points import get_bench_points
 from app.config import settings
 from app.consistency import get_consistency
@@ -28,7 +39,13 @@ from app.schemas import (
 from app.sync_service import sync_league
 from app.trends import get_player_trends
 
-app = FastAPI(title="Backup Armchair Quarterback")
+app = FastAPI(
+    title="Backup Armchair Quarterback",
+    # Off unless ENABLE_API_DOCS=true — see Settings.enable_api_docs.
+    docs_url="/docs" if settings.enable_api_docs else None,
+    redoc_url="/redoc" if settings.enable_api_docs else None,
+    openapi_url="/openapi.json" if settings.enable_api_docs else None,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -62,10 +79,17 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/api/auth/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email.lower()).first()
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    email = payload.email.lower()
+    ip = client_ip(request)
+    check_login_allowed(email, ip)
+
+    user = db.query(User).filter(User.email == email).first()
     if user is None or not verify_password(payload.password, user.hashed_password):
+        record_failed_login(email, ip)
         raise HTTPException(status_code=401, detail="Incorrect email or password")
+
+    clear_failed_logins(email, ip)
     return TokenResponse(access_token=create_access_token(user.id))
 
 
@@ -170,7 +194,12 @@ def get_roster(league_id: int, db: Session = Depends(get_db), current_user: User
     league = _owned_league_or_404(db, league_id, current_user)
     my_team_id = _require_my_team(league)
     team = db.query(Team).filter(Team.league_id == league.id, Team.espn_team_id == my_team_id).first()
-    entries = db.query(RosterEntry).filter(RosterEntry.team_id == team.id).all()
+    entries = (
+        db.query(RosterEntry)
+        .filter(RosterEntry.team_id == team.id)
+        .options(selectinload(RosterEntry.player))
+        .all()
+    )
     trends = get_player_trends(db, league.id, [(e.player.espn_player_id, e.player.position) for e in entries])
     consistency = get_consistency(db, league.id, [e.player.espn_player_id for e in entries])
     return {
@@ -281,25 +310,34 @@ def teams_with_rosters(
 ):
     league = _owned_league_or_404(db, league_id, current_user)
     teams = db.query(Team).filter(Team.league_id == league.id).order_by(Team.name).all()
-    result = []
-    for team in teams:
-        entries = db.query(RosterEntry).filter(RosterEntry.team_id == team.id).all()
-        result.append(
-            {
-                "id": team.espn_team_id,
-                "name": team.name,
-                "roster": [
-                    {
-                        "espn_player_id": e.player.espn_player_id,
-                        "name": e.player.full_name,
-                        "position": e.player.position,
-                        "projected_points": e.player.projected_points,
-                    }
-                    for e in entries
-                ],
-            }
-        )
-    return result
+    # One query for every team's roster (with players preloaded) instead of
+    # a query per team plus one per player.
+    entries = (
+        db.query(RosterEntry)
+        .filter(RosterEntry.team_id.in_([team.id for team in teams]))
+        .options(selectinload(RosterEntry.player))
+        .all()
+    )
+    entries_by_team = defaultdict(list)
+    for entry in entries:
+        entries_by_team[entry.team_id].append(entry)
+
+    return [
+        {
+            "id": team.espn_team_id,
+            "name": team.name,
+            "roster": [
+                {
+                    "espn_player_id": e.player.espn_player_id,
+                    "name": e.player.full_name,
+                    "position": e.player.position,
+                    "projected_points": e.player.projected_points,
+                }
+                for e in entries_by_team.get(team.id, [])
+            ],
+        }
+        for team in teams
+    ]
 
 
 @app.post("/api/league/{league_id}/trade-grade")

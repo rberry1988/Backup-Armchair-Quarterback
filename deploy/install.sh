@@ -64,6 +64,10 @@ EOF
 else
     echo "    Found existing backend/.env — leaving it as-is"
 fi
+# Holds the session signing key and any API keys, so keep it readable only
+# by the service account rather than every local user on the box.
+chmod 600 "$APP_DIR/backend/.env"
+chown "$APP_USER:$APP_USER" "$APP_DIR/backend/.env"
 sudo -u "$APP_USER" mkdir -p "$APP_DIR/backend/data"
 
 echo "==> Building frontend (this can take a minute)"
