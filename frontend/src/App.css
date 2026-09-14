@@ -1,0 +1,155 @@
+.app {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+header h1 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
+.league-badge {
+  color: #8ab4f8;
+  font-size: 0.9rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.4rem;
+  border-bottom: 1px solid #2a2d34;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.tabs button {
+  background: none;
+  border: none;
+  color: #9aa0a6;
+  padding: 0.6rem 0.9rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  border-bottom: 2px solid transparent;
+}
+
+.tabs button.active {
+  color: #e8eaed;
+  border-bottom-color: #8ab4f8;
+}
+
+.tabs button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.panel {
+  background: #171a21;
+  border: 1px solid #2a2d34;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.form-row label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+  color: #9aa0a6;
+  gap: 0.25rem;
+}
+
+input,
+select,
+button {
+  font-size: 0.9rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid #3c4043;
+  background: #202127;
+  color: #e8eaed;
+}
+
+button {
+  cursor: pointer;
+  background: #2f5fa3;
+  border-color: #2f5fa3;
+}
+
+button:hover:not(:disabled) {
+  background: #3a6fbd;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: #9aa0a6;
+}
+
+.error {
+  color: #f28b82;
+}
+
+.team-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+  font-size: 0.9rem;
+}
+
+.scoring-list {
+  columns: 2;
+  font-size: 0.85rem;
+  color: #c4c7c5;
+}
+
+.swap-row {
+  background: rgba(138, 180, 248, 0.08);
+}
+
+.bench-row {
+  color: #9aa0a6;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  background: #5c2b29;
+  color: #f28b82;
+  font-size: 0.7rem;
+}
+
+.waiver-group {
+  margin-bottom: 1.5rem;
+}
+
+.partner-card {
+  border: 1px solid #2a2d34;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.partner-card h4 {
+  margin: 0 0 0.4rem;
+}
