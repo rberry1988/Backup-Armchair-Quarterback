@@ -32,7 +32,7 @@ export function LoginPage({ onLoggedIn }: Props) {
   return (
     <div className="login-screen">
       <form className="login-card" onSubmit={handleSubmit}>
-        <h1>Fantasy Football Copilot</h1>
+        <h1>Backup Armchair Quarterback</h1>
         <p className="hint">{mode === "login" ? "Sign in to your account" : "Create an account"}</p>
 
         <label>

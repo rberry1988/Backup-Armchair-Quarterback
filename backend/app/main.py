@@ -21,7 +21,7 @@ from app.schemas import (
 from app.sync_service import sync_league
 from app.trends import get_player_trend
 
-app = FastAPI(title="Fantasy Football Copilot")
+app = FastAPI(title="Backup Armchair Quarterback")
 
 app.add_middleware(
     CORSMiddleware,

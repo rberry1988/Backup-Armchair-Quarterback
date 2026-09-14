@@ -64,7 +64,7 @@ function App() {
   return (
     <div className="app">
       <header>
-        <h1>Fantasy Football Copilot</h1>
+        <h1>Backup Armchair Quarterback</h1>
         {league && <span className="league-badge">{league.name}</span>}
         <div className="header-right">
           <span>{user.email}</span>

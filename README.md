@@ -1,4 +1,4 @@
-# Fantasy Football Copilot
+# Backup Armchair Quarterback
 
 A local web app that syncs your ESPN fantasy football league (rosters,
 teams, and scoring rules) and gives you three things every week:
