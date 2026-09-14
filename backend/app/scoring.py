@@ -94,19 +94,6 @@ def all_weekly_data(player_json: dict) -> dict[int, dict]:
     return weeks
 
 
-def all_weekly_points(player_json: dict) -> dict[int, dict[str, float | None]]:
-    """Return {week: {"projected": ..., "actual": ...}} — same as
-    all_weekly_data() but without the raw stat breakdowns, for callers that
-    only need point totals."""
-    return {
-        week: {"projected": d["projected"], "actual": d["actual"]} for week, d in all_weekly_data(player_json).items()
-    }
-
-
-def player_points_for_week(player_json: dict, week: int) -> tuple[float | None, float | None]:
-    """Return (projected_points, actual_points) for a player in a given week."""
-    bucket = all_weekly_points(player_json).get(week, {})
-    return bucket.get("projected"), bucket.get("actual")
 
 
 def extract_player_core(player_json: dict) -> dict[str, Any]:

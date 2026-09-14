@@ -12,6 +12,8 @@ crosswalk match and nflverse was reachable at sync time.
 
 from __future__ import annotations
 
+from collections import defaultdict
+
 from sqlalchemy.orm import Session
 
 from app.models import PlayerWeekStat
@@ -75,33 +77,23 @@ def _trend_label(values: list[float]) -> str | None:
     return "flat"
 
 
-def get_player_trend(
-    db: Session, league_id: int, espn_player_id: int, position: str, weeks_back: int = 4
-) -> dict | None:
+def _trend_from_rows(rows: list[PlayerWeekStat], position: str, weeks_back: int) -> dict | None:
     stat_keys = POSITION_TREND_STATS.get(position)
     if not stat_keys:
         return None
 
-    # Over-fetch and filter in Python for "this week was actually played"
-    # rather than filtering on actual_points in SQL: a week can have real
-    # data (raw counting stats from ESPN, or advanced stats from nflverse)
-    # without actual_points necessarily being set, and vice versa a bye/
-    # future week can exist as a row with neither populated.
-    candidates = (
-        db.query(PlayerWeekStat)
-        .filter(PlayerWeekStat.league_id == league_id, PlayerWeekStat.espn_player_id == espn_player_id)
-        .order_by(PlayerWeekStat.week.desc())
-        .limit(weeks_back + 4)
-        .all()
-    )
-    played = [row for row in candidates if row.raw_stats_actual or row.advanced_stats]
-    rows = list(reversed(played[:weeks_back]))  # chronological order
-    if not rows:
+    # rows arrive newest-first; keep only weeks that were actually played
+    # (real data in either source — actual_points isn't a reliable enough
+    # signal on its own, see get_player_trends' docstring) and take the
+    # most recent `weeks_back` of those, oldest to newest.
+    played = [row for row in rows if row.raw_stats_actual or row.advanced_stats]
+    played_recent = list(reversed(played[:weeks_back]))
+    if not played_recent:
         return None
 
     stats: dict[str, dict] = {}
     for key, field in stat_keys:
-        values = [getattr(row, field).get(key) for row in rows]
+        values = [getattr(row, field).get(key) for row in played_recent]
         values = [v for v in values if v is not None]
         if not values:
             continue
@@ -113,4 +105,45 @@ def get_player_trend(
 
     if not stats:
         return None
-    return {"weeks_counted": len(rows), "stats": stats}
+    return {"weeks_counted": len(played_recent), "stats": stats}
+
+
+def get_player_trends(
+    db: Session, league_id: int, players: list[tuple[int, str]], weeks_back: int = 4
+) -> dict[int, dict | None]:
+    """Batched form of get_player_trend() — one query for many players
+    instead of one query each, for pages that render a whole roster or
+    waiver list at once. `players` is a list of (espn_player_id, position).
+
+    A week can have real data (raw counting stats from ESPN, or advanced
+    stats from nflverse) without actual_points necessarily being set, and
+    vice versa a bye/future week can exist as a row with neither populated
+    — so "was this week played" is decided by row content, not
+    actual_points, hence the over-fetch-and-filter-in-Python approach
+    below rather than a SQL-level per-player LIMIT.
+    """
+    espn_ids = [pid for pid, _ in players]
+    if not espn_ids:
+        return {}
+
+    rows_by_player: dict[int, list[PlayerWeekStat]] = defaultdict(list)
+    all_rows = (
+        db.query(PlayerWeekStat)
+        .filter(PlayerWeekStat.league_id == league_id, PlayerWeekStat.espn_player_id.in_(espn_ids))
+        .order_by(PlayerWeekStat.espn_player_id, PlayerWeekStat.week.desc())
+        .all()
+    )
+    for row in all_rows:
+        rows_by_player[row.espn_player_id].append(row)
+
+    return {
+        espn_id: _trend_from_rows(rows_by_player.get(espn_id, []), position, weeks_back)
+        for espn_id, position in players
+    }
+
+
+def get_player_trend(
+    db: Session, league_id: int, espn_player_id: int, position: str, weeks_back: int = 4
+) -> dict | None:
+    """Single-player convenience wrapper around get_player_trends()."""
+    return get_player_trends(db, league_id, [(espn_player_id, position)], weeks_back)[espn_player_id]

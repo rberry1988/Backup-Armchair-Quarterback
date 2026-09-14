@@ -17,9 +17,10 @@ from app.schemas import (
     SyncRequest,
     TokenResponse,
     TradeGradeRequest,
+    UserOut,
 )
 from app.sync_service import sync_league
-from app.trends import get_player_trend
+from app.trends import get_player_trends
 
 app = FastAPI(title="Backup Armchair Quarterback")
 
@@ -62,7 +63,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     return TokenResponse(access_token=create_access_token(user.id))
 
 
-@app.get("/api/auth/me")
+@app.get("/api/auth/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
     return {"id": current_user.id, "email": current_user.email}
 
@@ -164,6 +165,7 @@ def get_roster(league_id: int, db: Session = Depends(get_db), current_user: User
     my_team_id = _require_my_team(league)
     team = db.query(Team).filter(Team.league_id == league.id, Team.espn_team_id == my_team_id).first()
     entries = db.query(RosterEntry).filter(RosterEntry.team_id == team.id).all()
+    trends = get_player_trends(db, league.id, [(e.player.espn_player_id, e.player.position) for e in entries])
     return {
         "team": team.name,
         "week": league.current_week,
@@ -177,7 +179,7 @@ def get_roster(league_id: int, db: Session = Depends(get_db), current_user: User
                 "actual_points": e.player.actual_points,
                 "injury_status": e.player.injury_status,
                 "percent_owned": e.player.percent_owned,
-                "trend": get_player_trend(db, league.id, e.player.espn_player_id, e.player.position),
+                "trend": trends.get(e.player.espn_player_id),
             }
             for e in entries
         ],

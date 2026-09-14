@@ -73,13 +73,16 @@ class ESPNClient:
 
     def _get(self, params: dict[str, Any], extra_headers: dict[str, str] | None = None) -> dict:
         headers = extra_headers or {}
-        with httpx.Client(timeout=20.0) as client:
-            resp = client.get(
-                self.base_url,
-                params=params,
-                cookies=self._cookies(),
-                headers=headers,
-            )
+        try:
+            with httpx.Client(timeout=20.0) as client:
+                resp = client.get(
+                    self.base_url,
+                    params=params,
+                    cookies=self._cookies(),
+                    headers=headers,
+                )
+        except httpx.HTTPError as exc:
+            raise ESPNClientError(f"Could not reach ESPN: {exc}") from exc
         if resp.status_code == 401:
             raise ESPNClientError(
                 "ESPN returned 401 Unauthorized. This league may be private; "
@@ -90,7 +93,10 @@ class ESPNClient:
                 f"League {self.league_id} not found for season {self.season}. "
                 "Check the league ID and season."
             )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise ESPNClientError(f"ESPN returned an error: {exc}") from exc
         return resp.json()
 
     def get_league(self) -> dict:

@@ -6,20 +6,6 @@ from app.models import Player, RosterEntry, Team
 
 INJURED_OUT_STATUSES = {"OUT", "INJURY_RESERVE", "SUSPENSION", "DOUBTFUL"}
 
-# Rough map of which positions can fill each ESPN lineup slot id.
-SLOT_ELIGIBLE_POSITIONS = {
-    0: {"QB"},
-    2: {"RB"},
-    3: {"RB", "WR"},
-    4: {"WR"},
-    5: {"WR", "TE"},
-    6: {"TE"},
-    7: {"QB", "RB", "WR", "TE"},
-    16: {"D/ST"},
-    17: {"K"},
-    23: {"RB", "WR", "TE"},
-}
-
 
 def points_or_default(player: Player, default: float = 0.0) -> float:
     return player.projected_points if player.projected_points is not None else default

@@ -198,6 +198,22 @@ def grade_trade(
     if team_a is None or team_b is None:
         return {"error": "team_not_found"}
 
+    # Needs are computed once from league-wide profiles here, rather than by
+    # calling get_trade_suggestions() per side (which would recompute every
+    # team's profile — including bench depth and partner suggestions we
+    # don't need — twice over).
+    starters_needed = _starters_needed(league.roster_slot_counts or {})
+    profiles = {team.id: _team_position_profile(db, team, starters_needed) for team in teams}
+
+    def needs_for(team_id: int) -> set[str]:
+        needs = set()
+        for pos in POSITIONS:
+            league_strengths = [profiles[t.id][pos]["starting_strength"] for t in teams]
+            median_strength = statistics.median(league_strengths) if league_strengths else 0
+            if profiles[team_id][pos]["starting_strength"] < median_strength:
+                needs.add(pos)
+        return needs
+
     def describe(espn_player_ids: list[int]) -> list[dict]:
         players = []
         for pid in espn_player_ids:
@@ -224,11 +240,9 @@ def grade_trade(
         grades = {winner: "A", loser: _grade_for_pct_edge(pct_edge)}
         grade_a, grade_b = grades["A"], grades["B"]
 
-    def need_notes(team_espn_id: int, received: list[dict]) -> list[str]:
-        context = get_trade_suggestions(db, league_id, team_espn_id)
-        need_positions = {n["position"] for n in context.get("needs", [])}
-        notes = [f"Addresses their need at {p['position']}" for p in received if p["position"] in need_positions]
-        return notes
+    def need_notes(team_id: int, received: list[dict]) -> list[str]:
+        need_positions = needs_for(team_id)
+        return [f"Addresses their need at {p['position']}" for p in received if p["position"] in need_positions]
 
     return {
         "team_a": {
@@ -238,7 +252,7 @@ def grade_trade(
             "value_sent": round(a_gives_value, 1),
             "value_received": round(b_gives_value, 1),
             "grade": grade_a,
-            "notes": need_notes(team_a_espn_id, b_sends),
+            "notes": need_notes(team_a.id, b_sends),
         },
         "team_b": {
             "name": team_b.name,
@@ -247,7 +261,7 @@ def grade_trade(
             "value_sent": round(b_gives_value, 1),
             "value_received": round(a_gives_value, 1),
             "grade": grade_b,
-            "notes": need_notes(team_b_espn_id, a_sends),
+            "notes": need_notes(team_b.id, a_sends),
         },
         "verdict": verdict,
     }

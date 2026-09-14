@@ -10,7 +10,7 @@ from app.recommendations.common import (
     points_or_default,
     roster_with_players,
 )
-from app.trends import get_player_trend
+from app.trends import get_player_trends
 
 POSITIONS = ["QB", "RB", "WR", "TE", "K", "D/ST"]
 
@@ -43,7 +43,10 @@ def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int 
     )
     free_agents = [p for p in free_agents if p.espn_player_id not in my_rostered_espn_ids]
 
-    results = []
+    # Pass 1: pick the upgrade candidates per position (no DB calls) so we
+    # know the full set of players before batching the trend lookup below
+    # into a single query instead of one per candidate.
+    picks_by_position: dict[str, list[tuple[Player, float, Player | None]]] = {}
     for position in POSITIONS:
         my_players = sorted(
             my_players_by_position.get(position, []),
@@ -56,39 +59,46 @@ def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int 
         candidates = [p for p in free_agents if p.position == position and p.injury_status not in INJURED_OUT_STATUSES]
         candidates.sort(key=lambda p: points_or_default(p), reverse=True)
 
-        upgrades = []
+        picks: list[tuple[Player, float, Player | None]] = []
         for candidate in candidates[: top_n * 2]:
             candidate_points = points_or_default(candidate)
             if weakest_rostered is None or candidate_points > baseline:
-                point_upgrade = round(candidate_points - baseline, 1)
-                upgrades.append(
-                    {
-                        "add": {
-                            "name": candidate.full_name,
-                            "projected_points": candidate.projected_points,
-                            "percent_owned": round(candidate.percent_owned, 1),
-                            "injury_status": candidate.injury_status,
-                            "matchup": get_matchup_context(league, candidate.pro_team_id, candidate.position)
-                            if league
-                            else None,
-                            "trend": get_player_trend(db, league_id, candidate.espn_player_id, candidate.position),
-                        },
-                        "drop_candidate": (
-                            {
-                                "name": weakest_rostered.full_name,
-                                "projected_points": weakest_rostered.projected_points,
-                            }
-                            if weakest_rostered
-                            else None
-                        ),
-                        "point_upgrade": point_upgrade,
-                        "suggested_faab_pct": _suggested_faab_pct(point_upgrade),
-                    }
-                )
-            if len(upgrades) >= top_n:
+                picks.append((candidate, round(candidate_points - baseline, 1), weakest_rostered))
+            if len(picks) >= top_n:
                 break
+        if picks:
+            picks_by_position[position] = picks
 
-        if upgrades:
-            results.append({"position": position, "suggestions": upgrades})
+    trends = get_player_trends(
+        db,
+        league_id,
+        [(candidate.espn_player_id, candidate.position) for picks in picks_by_position.values() for candidate, _, _ in picks],
+    )
+
+    results = []
+    for position, picks in picks_by_position.items():
+        suggestions = [
+            {
+                "add": {
+                    "name": candidate.full_name,
+                    "projected_points": candidate.projected_points,
+                    "percent_owned": round(candidate.percent_owned, 1),
+                    "injury_status": candidate.injury_status,
+                    "matchup": get_matchup_context(league, candidate.pro_team_id, candidate.position)
+                    if league
+                    else None,
+                    "trend": trends.get(candidate.espn_player_id),
+                },
+                "drop_candidate": (
+                    {"name": weakest_rostered.full_name, "projected_points": weakest_rostered.projected_points}
+                    if weakest_rostered
+                    else None
+                ),
+                "point_upgrade": point_upgrade,
+                "suggested_faab_pct": _suggested_faab_pct(point_upgrade),
+            }
+            for candidate, point_upgrade, weakest_rostered in picks
+        ]
+        results.append({"position": position, "suggestions": suggestions})
 
     return {"team": team.name, "recommendations": results}
