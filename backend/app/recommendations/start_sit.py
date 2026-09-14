@@ -76,14 +76,18 @@ def get_start_sit(db: Session, league_id: int, my_team_id: int) -> dict:
                     "position": current_starter.position,
                     "projected_points": current_starter.projected_points,
                     "injury_status": current_starter.injury_status,
-                    "matchup": get_matchup_context(league, current_starter.pro_team_id) if league else None,
+                    "matchup": get_matchup_context(league, current_starter.pro_team_id, current_starter.position)
+                    if league
+                    else None,
                 },
                 "recommended_starter": {
                     "name": recommended.full_name,
                     "position": recommended.position,
                     "projected_points": recommended.projected_points,
                     "injury_status": recommended.injury_status,
-                    "matchup": get_matchup_context(league, recommended.pro_team_id) if league else None,
+                    "matchup": get_matchup_context(league, recommended.pro_team_id, recommended.position)
+                    if league
+                    else None,
                 },
                 "swap_recommended": swap_needed,
                 "reason": reason,

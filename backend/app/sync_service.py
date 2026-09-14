@@ -4,9 +4,16 @@ import datetime
 
 from sqlalchemy.orm import Session
 
+from app.advanced_stats import (
+    compute_points_allowed_by_position,
+    get_advanced_stats_for_player,
+    index_snaps_by_pfr,
+    index_weekly_by_gsis,
+)
 from app.espn_client import ESPNClient, fetch_week_schedule
 from app.espn_constants import is_bench_slot, lineup_slot_label, position_from_id
 from app.models import League, Player, PlayerWeekStat, RosterEntry, Team
+from app.nflverse_client import fetch_id_crosswalk, fetch_snap_counts, fetch_weekly_player_stats
 from app.scoring import all_weekly_data, build_scoring_rules, extract_player_core, player_points_for_week
 
 
@@ -181,7 +188,8 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
         record_weekly_stats(espn_player_id, full_name, position, player_json)
 
     # Matchup-difficulty inputs: this week's NFL schedule, and every team
-    # defense's projected fantasy score (used as a defense-strength proxy).
+    # defense's projected fantasy score (used as a defense-strength proxy
+    # fallback when real points-allowed data below isn't available).
     # Best-effort — fetch_week_schedule() returns {} on failure rather than
     # raising, so a schedule-API outage never breaks the league sync.
     league.schedule = fetch_week_schedule(week, season)
@@ -190,6 +198,37 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
         for player in player_by_espn_id.values()
         if player.position == "D/ST" and player.projected_points is not None and player.pro_team_id
     }
+
+    # Advanced stats nflverse has that ESPN doesn't (target share, air
+    # yards share, WOPR, snap %), plus real points-allowed-by-position —
+    # all best-effort, joined to our ESPN players via the dynastyprocess
+    # id crosswalk. Any empty result here just means these enrichments are
+    # skipped this sync; it never blocks the ESPN data above.
+    crosswalk = fetch_id_crosswalk()
+    weekly_stats_rows = fetch_weekly_player_stats(season) if crosswalk else []
+    if crosswalk and weekly_stats_rows:
+        gsis_index = index_weekly_by_gsis(weekly_stats_rows)
+        pfr_index = index_snaps_by_pfr(fetch_snap_counts(season))
+        now = datetime.datetime.utcnow()
+        for espn_player_id, player in player_by_espn_id.items():
+            adv_by_week = get_advanced_stats_for_player(espn_player_id, crosswalk, gsis_index, pfr_index)
+            for wk, adv_stats in adv_by_week.items():
+                key = (espn_player_id, wk)
+                row = existing_week_stats.get(key)
+                if row is None:
+                    row = PlayerWeekStat(
+                        league_id=league_id,
+                        espn_player_id=espn_player_id,
+                        full_name=player.full_name,
+                        position=player.position,
+                        week=wk,
+                    )
+                    db.add(row)
+                    existing_week_stats[key] = row
+                row.advanced_stats = adv_stats
+                row.captured_at = now
+
+        league.points_allowed_by_position = compute_points_allowed_by_position(weekly_stats_rows, through_week=week)
 
     db.commit()
     db.refresh(league)

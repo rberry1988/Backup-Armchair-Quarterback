@@ -1,8 +1,13 @@
-"""Usage-trend tracking: targets, carries, and similar opportunity stats
-move before fantasy points do, so surfacing the last few weeks' raw counts
-(and whether they're rising or falling) is often a better early signal than
-points alone — this is what waiver-wire "buy low / sell high" calls are
-usually based on.
+"""Usage-trend tracking: targets, carries, target share, snap %, and similar
+opportunity stats move before fantasy points do, so surfacing the last few
+weeks' values (and whether they're rising or falling) is often a better
+early signal than points alone — this is what waiver-wire "buy low / sell
+high" calls are usually based on.
+
+Two sources feed this: ESPN's own raw counting stats (targets, carries, ...
+— see scoring.py) and nflverse's advanced metrics (target share, snap %,
+... — see advanced_stats.py), the latter only present when a player has a
+crosswalk match and nflverse was reachable at sync time.
 """
 
 from __future__ import annotations
@@ -11,14 +16,28 @@ from sqlalchemy.orm import Session
 
 from app.models import PlayerWeekStat
 
-# Which raw stats matter for each position, most important first. The
-# first one drives the headline trend label; the rest ride along for
-# context (e.g. a receiving back's targets alongside carries).
-POSITION_TREND_STATS: dict[str, list[str]] = {
-    "QB": ["pass_attempts", "pass_yards"],
-    "RB": ["carries", "targets"],
-    "WR": ["targets", "receptions"],
-    "TE": ["targets", "receptions"],
+# Which stats matter for each position, most important first, and which
+# PlayerWeekStat field they live on. The first one drives the headline
+# trend label; the rest ride along for context.
+POSITION_TREND_STATS: dict[str, list[tuple[str, str]]] = {
+    "QB": [("pass_attempts", "raw_stats_actual"), ("pass_yards", "raw_stats_actual")],
+    "RB": [
+        ("carries", "raw_stats_actual"),
+        ("targets", "raw_stats_actual"),
+        ("snap_pct", "advanced_stats"),
+    ],
+    "WR": [
+        ("targets", "raw_stats_actual"),
+        ("target_share", "advanced_stats"),
+        ("receptions", "raw_stats_actual"),
+        ("snap_pct", "advanced_stats"),
+    ],
+    "TE": [
+        ("targets", "raw_stats_actual"),
+        ("target_share", "advanced_stats"),
+        ("receptions", "raw_stats_actual"),
+        ("snap_pct", "advanced_stats"),
+    ],
 }
 
 STAT_LABELS: dict[str, str] = {
@@ -30,6 +49,10 @@ STAT_LABELS: dict[str, str] = {
     "targets": "Targets",
     "receptions": "Rec",
     "rec_yards": "Rec Yds",
+    "target_share": "Tgt Share %",
+    "air_yards_share": "Air Yds Share %",
+    "wopr": "WOPR",
+    "snap_pct": "Snap %",
 }
 
 UP_THRESHOLD = 1.15
@@ -59,24 +82,26 @@ def get_player_trend(
     if not stat_keys:
         return None
 
-    rows = (
+    # Over-fetch and filter in Python for "this week was actually played"
+    # rather than filtering on actual_points in SQL: a week can have real
+    # data (raw counting stats from ESPN, or advanced stats from nflverse)
+    # without actual_points necessarily being set, and vice versa a bye/
+    # future week can exist as a row with neither populated.
+    candidates = (
         db.query(PlayerWeekStat)
-        .filter(
-            PlayerWeekStat.league_id == league_id,
-            PlayerWeekStat.espn_player_id == espn_player_id,
-            PlayerWeekStat.actual_points.isnot(None),
-        )
+        .filter(PlayerWeekStat.league_id == league_id, PlayerWeekStat.espn_player_id == espn_player_id)
         .order_by(PlayerWeekStat.week.desc())
-        .limit(weeks_back)
+        .limit(weeks_back + 4)
         .all()
     )
+    played = [row for row in candidates if row.raw_stats_actual or row.advanced_stats]
+    rows = list(reversed(played[:weeks_back]))  # chronological order
     if not rows:
         return None
-    rows = list(reversed(rows))  # chronological order
 
     stats: dict[str, dict] = {}
-    for key in stat_keys:
-        values = [row.raw_stats_actual.get(key) for row in rows]
+    for key, field in stat_keys:
+        values = [getattr(row, field).get(key) for row in rows]
         values = [v for v in values if v is not None]
         if not values:
             continue

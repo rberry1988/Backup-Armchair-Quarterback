@@ -16,13 +16,14 @@ teams, and scoring rules) and gives you three things every week:
   rest-of-season average projected points (not just this week's number) and
   a note when the trade addresses a team's positional need.
 - **Matchup difficulty** — Start/Sit and Waivers both tag each player with
-  their opponent this week and a tough/average/favorable label, and
-  **suggested FAAB bids** on waiver adds — see limitations below for how
-  both are approximated.
+  their opponent this week and a tough/average/favorable label, based on
+  real points-allowed-by-position data where available (see nflverse
+  below), and **suggested FAAB bids** on waiver adds.
 - **Usage trends** — Roster and Waivers show each player's last few played
-  weeks of targets, carries, receptions, or pass attempts (whichever's
-  relevant to their position), with an up/down/flat label — the kind of
-  opportunity shift that tends to move before fantasy points do.
+  weeks of targets, carries, receptions, or pass attempts, plus (when
+  available) real target share and snap % from nflverse — an up/down/flat
+  label on whichever's most relevant to their position, since these
+  opportunity shifts tend to move before fantasy points do.
 
 It only supports **public** ESPN leagues (no ESPN login/cookie flow). If
 your league is private, ESPN's data endpoints return 401s.
@@ -38,7 +39,11 @@ league.
   JWT sessions) and, per user, pulls league settings/scoring rules,
   teams, rosters, and free agents straight from ESPN's fantasy API
   (undocumented but stable community-known endpoints) and computes
-  recommendations server-side.
+  recommendations server-side. Enriches that with
+  [nflverse](https://github.com/nflverse/nflverse-data) — free,
+  open-source NFL play-by-play data — for stats ESPN's API doesn't expose
+  (target share, air yards share, WOPR, snap %) and for computing real
+  points-allowed-by-position defense ratings.
 - `frontend/` — Vite + React + TypeScript single-page app.
 
 ## Setup
@@ -111,28 +116,54 @@ selections or synced data.
   Change it from the placeholder before letting anyone other than you use
   the app — anyone who knows the secret can forge a session for any user
   id. Sessions last 2 weeks by default (`JWT_EXPIRE_MINUTES`).
-- Matchup difficulty is an approximation, not real points-allowed-by-position
-  data (that needs full box-score history this app doesn't collect). It
-  ranks each opponent by their own projected D/ST fantasy score — a defense
-  projected to score well is treated as a tougher matchup. It's a
-  reasonable proxy, not a precise one. The NFL schedule itself comes from
-  ESPN's separate public scoreboard API (not the fantasy API); if that
-  endpoint is unreachable at sync time, matchup tags just don't appear
-  rather than breaking the sync.
+- Matchup difficulty prefers real average PPR points-allowed-per-game by
+  position (computed from nflverse's weekly stats, using only games played
+  so far this season), ranked league-wide — fewer points allowed by a
+  defense means a tougher matchup for the offense facing it. If that data
+  isn't available for a team/position (nflverse unreachable, or too early
+  in the season), it falls back to a cruder proxy: the opponent's own
+  projected D/ST fantasy score. The `matchup.source` field on API
+  responses says which one was used (`points_allowed` or
+  `dst_projection`). The NFL schedule itself comes from ESPN's separate
+  public scoreboard API (not the fantasy API); if that's unreachable at
+  sync time, matchup tags just don't appear rather than breaking the sync.
 - Suggested FAAB bids are a simple heuristic (scaled off the point upgrade
   a pickup projects over your weakest rostered player at that position, as
   a % of a 100-point budget) — not read from your league's actual FAAB
   budget or waiver settings. Ignore them if your league uses waiver
   priority instead of FAAB.
-- Usage trends only cover the raw stats ESPN exposes per week (pass
+- Usage trends combine ESPN's raw per-week counting stats (pass
   attempts/completions/yards, carries/rush yards, targets/receptions/rec
-  yards) — there's no snap-count or red-zone-usage data available from
-  ESPN's API, so those aren't tracked. The trend label compares the first
-  half of the last 4 played weeks to the second half; it needs at least 2
-  played weeks of history to show anything; K and D/ST don't have a
-  meaningful stat here and are skipped.
-- Schema changes to `PlayerWeekStat` (adding the raw usage columns) only
-  apply to a freshly created database — if you're upgrading an existing
-  `backend/data/fantasy.db` from before this feature, delete it and
-  re-sync your league(s) rather than expecting the new columns to appear
-  on their own (there's no migration framework in this app).
+  yards) with nflverse's advanced metrics (target share, snap %) where a
+  player has a crosswalk match. The trend label compares the first half of
+  the last 4 played weeks to the second half; it needs at least 2 played
+  weeks of history to show anything; K and D/ST don't have a meaningful
+  stat here and are skipped.
+- Schema changes to `PlayerWeekStat`/`League` (adding the usage/advanced-
+  stats and points-allowed columns) only apply to a freshly created
+  database — if you're upgrading an existing `backend/data/fantasy.db`
+  from before these features, delete it and re-sync your league(s) rather
+  than expecting new columns to appear on their own (there's no migration
+  framework in this app).
+
+## nflverse data (advanced stats + real matchup ratings)
+
+`backend/app/nflverse_client.py` pulls three free, public CSVs, no API key
+needed:
+
+- A player-id crosswalk (maintained by the
+  [dynastyprocess](https://github.com/dynastyprocess/data) project) to map
+  ESPN's player ids to the `gsis_id`/`pfr_id` nflverse and Pro-Football-
+  Reference use — the two ecosystems don't share an id scheme.
+- nflverse's combined weekly player stats file (all seasons since 1999 in
+  one ~33MB CSV) — target share, air yards share, WOPR, and raw
+  yardage/target/carry counts, filtered down to the current season while
+  parsing.
+- nflverse's per-season snap-count file, for offensive snap %.
+
+Downloads are cached to `backend/data/nflverse_cache/` for 6 hours, so
+only the first sync in a while pays the download/parse cost (a few
+seconds); everything after that reads from disk. All of it is best-effort
+— if nflverse is unreachable or a player has no crosswalk match, sync
+still completes normally and that player's advanced stats/points-allowed
+data are simply absent that time.

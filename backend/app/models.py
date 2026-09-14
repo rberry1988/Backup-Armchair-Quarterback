@@ -42,6 +42,12 @@ class League(Base):
     # endpoint was unreachable at sync time.
     schedule: Mapped[dict] = mapped_column(JSON, default=dict)
     dst_projected_points: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Real average PPR fantasy points allowed per game, by team abbreviation
+    # then position: {"BUF": {"WR": 24.1, "RB": 18.3, ...}, ...}, computed
+    # from nflverse's weekly stats. Preferred over dst_projected_points for
+    # matchup ratings when available (see app/matchup.py); empty if
+    # nflverse was unreachable or the player-id crosswalk had no match.
+    points_allowed_by_position: Mapped[dict] = mapped_column(JSON, default=dict)
 
     user: Mapped[User] = relationship(back_populates="leagues")
     teams: Mapped[list["Team"]] = relationship(back_populates="league", cascade="all, delete-orphan")
@@ -116,6 +122,11 @@ class PlayerWeekStat(Base):
     # near-term expectation, useful for an upcoming week with no actual yet.
     raw_stats_actual: Mapped[dict] = mapped_column(JSON, default=dict)
     raw_stats_projected: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Advanced metrics nflverse has that ESPN doesn't: target_share,
+    # air_yards_share, wopr (all %/ratio, already scaled to human-readable
+    # numbers), air_yards, yards_after_catch, snap_pct. See
+    # app/advanced_stats.py. Empty if the player has no crosswalk match.
+    advanced_stats: Mapped[dict] = mapped_column(JSON, default=dict)
     captured_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
 
 

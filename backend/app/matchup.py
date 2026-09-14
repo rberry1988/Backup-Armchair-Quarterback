@@ -1,12 +1,13 @@
-"""Matchup-difficulty proxy: how tough is a player's opponent this week?
+"""How tough is a player's opponent this week?
 
-We don't have per-position "points allowed" data (that needs full box-score
-history we don't collect), so we use each opponent's own projected D/ST
-fantasy score, ranked across the league, as a stand-in for defensive
-strength — a defense projected to score a lot of fantasy points (via
-sacks/turnovers/a strong performance) is generally a tougher matchup for
-the offense it's facing. It's an approximation, not a real
-points-allowed-by-position model.
+Preferred source: real average PPR points allowed per game by the
+opponent to the player's position, computed from nflverse's weekly stats
+(app/advanced_stats.py) — the standard "matchup vs. position" rating
+fantasy sites use. Falls back to a cruder proxy (the opponent's own
+projected D/ST fantasy score, ranked league-wide) when nflverse data is
+unavailable for that team/position/season — e.g. right after sync if
+nflverse was unreachable, or very early in a season before games have
+been played.
 """
 
 from __future__ import annotations
@@ -14,35 +15,59 @@ from __future__ import annotations
 from app.models import League
 
 
-def get_matchup_context(league: League, pro_team_id: int | None) -> dict | None:
-    if not pro_team_id or not league.schedule or not league.dst_projected_points:
-        return None
-
-    info = league.schedule.get(str(pro_team_id))
-    if not info or info.get("opponent_id") is None:
-        return None
-
-    dst_scores = league.dst_projected_points
-    opponent_id = info["opponent_id"]
-    opponent_score = dst_scores.get(str(opponent_id))
-    if opponent_score is None:
-        return None
-
-    ranked = sorted(dst_scores.values(), reverse=True)  # higher projected D/ST score = tougher defense
-    rank = ranked.index(opponent_score) + 1
+def _rank_and_label(value: float, all_values: list[float], higher_is_tougher: bool) -> tuple[int, int, str]:
+    ranked = sorted(all_values, reverse=higher_is_tougher)
+    rank = ranked.index(value) + 1
     total = len(ranked)
     third = max(1, total // 3)
-
     if rank <= third:
         label = "tough matchup"
     elif rank > total - third:
         label = "favorable matchup"
     else:
         label = "average matchup"
+    return rank, total, label
 
+
+def get_matchup_context(league: League, pro_team_id: int | None, position: str | None = None) -> dict | None:
+    if not pro_team_id or not league.schedule:
+        return None
+
+    info = league.schedule.get(str(pro_team_id))
+    if not info or info.get("opponent_id") is None:
+        return None
+    opponent_abbr = info.get("opponent_abbreviation")
+
+    points_allowed = league.points_allowed_by_position or {}
+    if position and opponent_abbr in points_allowed and position in points_allowed[opponent_abbr]:
+        all_values = [
+            team_positions[position] for team_positions in points_allowed.values() if position in team_positions
+        ]
+        if len(all_values) >= 4:  # too few teams to rank meaningfully otherwise
+            # Fewer points allowed = a stingier, tougher defense; more
+            # allowed = an easier matchup for the offense.
+            rank, total, label = _rank_and_label(
+                points_allowed[opponent_abbr][position], all_values, higher_is_tougher=False
+            )
+            return {
+                "opponent": opponent_abbr,
+                "defense_rank": rank,
+                "defense_teams_ranked": total,
+                "label": label,
+                "source": "points_allowed",
+            }
+
+    dst_scores = league.dst_projected_points or {}
+    opponent_id = info["opponent_id"]
+    opponent_score = dst_scores.get(str(opponent_id))
+    if opponent_score is None:
+        return None
+    # Higher D/ST projected score = a stronger, tougher defense.
+    rank, total, label = _rank_and_label(opponent_score, list(dst_scores.values()), higher_is_tougher=True)
     return {
-        "opponent": info.get("opponent_abbreviation"),
+        "opponent": opponent_abbr,
         "defense_rank": rank,
         "defense_teams_ranked": total,
         "label": label,
+        "source": "dst_projection",
     }
