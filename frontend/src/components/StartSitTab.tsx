@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { StartSitResponse } from "../types";
 import { api } from "../api";
+import { MatchupTag } from "./MatchupTag";
 
 export function StartSitTab({ leagueId }: { leagueId: number }) {
   const [data, setData] = useState<StartSitResponse | null>(null);
@@ -28,6 +29,7 @@ export function StartSitTab({ leagueId }: { leagueId: number }) {
             <th>Slot</th>
             <th>Currently Starting</th>
             <th>Proj.</th>
+            <th>Matchup</th>
             <th>Recommendation</th>
             <th>Why</th>
           </tr>
@@ -43,6 +45,9 @@ export function StartSitTab({ leagueId }: { leagueId: number }) {
                 )}
               </td>
               <td>{row.current_starter.projected_points ?? "-"}</td>
+              <td>
+                <MatchupTag matchup={row.current_starter.matchup} />
+              </td>
               <td>
                 {row.swap_recommended ? (
                   <strong>Start {row.recommended_starter.name} instead</strong>

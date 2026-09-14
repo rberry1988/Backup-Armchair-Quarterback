@@ -49,11 +49,26 @@ export interface RosterResponse {
   roster: RosterPlayer[];
 }
 
+export interface MatchupContext {
+  opponent: string;
+  defense_rank: number;
+  defense_teams_ranked: number;
+  label: string;
+}
+
+export interface StartSitPlayer {
+  name: string;
+  position: string;
+  projected_points: number | null;
+  injury_status: string;
+  matchup: MatchupContext | null;
+}
+
 export interface StartSitRow {
   slot: string;
   slot_id: number;
-  current_starter: { name: string; position: string; projected_points: number | null; injury_status: string };
-  recommended_starter: { name: string; position: string; projected_points: number | null; injury_status: string };
+  current_starter: StartSitPlayer;
+  recommended_starter: StartSitPlayer;
   swap_recommended: boolean;
   reason: string | null;
 }
@@ -66,9 +81,16 @@ export interface StartSitResponse {
 }
 
 export interface WaiverSuggestion {
-  add: { name: string; projected_points: number | null; percent_owned: number; injury_status: string };
+  add: {
+    name: string;
+    projected_points: number | null;
+    percent_owned: number;
+    injury_status: string;
+    matchup: MatchupContext | null;
+  };
   drop_candidate: { name: string; projected_points: number | null } | null;
   point_upgrade: number;
+  suggested_faab_pct: number;
 }
 
 export interface WaiverResponse {

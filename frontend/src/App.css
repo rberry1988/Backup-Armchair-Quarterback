@@ -312,3 +312,26 @@ button:disabled {
   background: #5c2b29;
   color: #f28b82;
 }
+
+.matchup-tag {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.matchup-tough {
+  background: #5c2b29;
+  color: #f28b82;
+}
+
+.matchup-favorable {
+  background: #1e4620;
+  color: #81c995;
+}
+
+.matchup-average {
+  background: #2a2d34;
+  color: #9aa0a6;
+}

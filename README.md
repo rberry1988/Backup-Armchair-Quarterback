@@ -15,6 +15,10 @@ teams, and scoring rules) and gives you three things every week:
   a fairness verdict + letter grade per team, using each player's
   rest-of-season average projected points (not just this week's number) and
   a note when the trade addresses a team's positional need.
+- **Matchup difficulty** — Start/Sit and Waivers both tag each player with
+  their opponent this week and a tough/average/favorable label, and
+  **suggested FAAB bids** on waiver adds — see limitations below for how
+  both are approximated.
 
 It only supports **public** ESPN leagues (no ESPN login/cookie flow). If
 your league is private, ESPN's data endpoints return 401s.
@@ -103,3 +107,16 @@ selections or synced data.
   Change it from the placeholder before letting anyone other than you use
   the app — anyone who knows the secret can forge a session for any user
   id. Sessions last 2 weeks by default (`JWT_EXPIRE_MINUTES`).
+- Matchup difficulty is an approximation, not real points-allowed-by-position
+  data (that needs full box-score history this app doesn't collect). It
+  ranks each opponent by their own projected D/ST fantasy score — a defense
+  projected to score well is treated as a tougher matchup. It's a
+  reasonable proxy, not a precise one. The NFL schedule itself comes from
+  ESPN's separate public scoreboard API (not the fantasy API); if that
+  endpoint is unreachable at sync time, matchup tags just don't appear
+  rather than breaking the sync.
+- Suggested FAAB bids are a simple heuristic (scaled off the point upgrade
+  a pickup projects over your weakest rostered player at that position, as
+  a % of a 100-point budget) — not read from your league's actual FAAB
+  budget or waiver settings. Ignore them if your league uses waiver
+  priority instead of FAAB.

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.models import Player
+from app.matchup import get_matchup_context
+from app.models import League, Player
 from app.recommendations.common import (
     INJURED_OUT_STATUSES,
     get_my_team,
@@ -12,11 +13,20 @@ from app.recommendations.common import (
 
 POSITIONS = ["QB", "RB", "WR", "TE", "K", "D/ST"]
 
+# Suggested FAAB bid as a % of a standard 100-point budget, scaled by how
+# many points the pickup projects to add over what it replaces. Purely a
+# starting-point heuristic — irrelevant if your league uses waiver
+# priority instead of FAAB.
+def _suggested_faab_pct(point_upgrade: float) -> int:
+    return max(0, min(35, round(point_upgrade * 2.5)))
+
 
 def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int = 5) -> dict:
     team = get_my_team(db, league_id, my_team_id)
     if team is None:
         return {"error": "team_not_found"}
+
+    league = db.get(League, league_id)
 
     my_entries = roster_with_players(db, team.id)
     my_players_by_position: dict[str, list[Player]] = {pos: [] for pos in POSITIONS}
@@ -49,6 +59,7 @@ def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int 
         for candidate in candidates[: top_n * 2]:
             candidate_points = points_or_default(candidate)
             if weakest_rostered is None or candidate_points > baseline:
+                point_upgrade = round(candidate_points - baseline, 1)
                 upgrades.append(
                     {
                         "add": {
@@ -56,6 +67,7 @@ def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int 
                             "projected_points": candidate.projected_points,
                             "percent_owned": round(candidate.percent_owned, 1),
                             "injury_status": candidate.injury_status,
+                            "matchup": get_matchup_context(league, candidate.pro_team_id) if league else None,
                         },
                         "drop_candidate": (
                             {
@@ -65,7 +77,8 @@ def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int 
                             if weakest_rostered
                             else None
                         ),
-                        "point_upgrade": round(candidate_points - baseline, 1),
+                        "point_upgrade": point_upgrade,
+                        "suggested_faab_pct": _suggested_faab_pct(point_upgrade),
                     }
                 )
             if len(upgrades) >= top_n:

@@ -4,7 +4,7 @@ import datetime
 
 from sqlalchemy.orm import Session
 
-from app.espn_client import ESPNClient
+from app.espn_client import ESPNClient, fetch_week_schedule
 from app.espn_constants import is_bench_slot, lineup_slot_label, position_from_id
 from app.models import League, Player, PlayerWeekStat, RosterEntry, Team
 from app.scoring import all_weekly_points, build_scoring_rules, extract_player_core, player_points_for_week
@@ -175,6 +175,17 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
         db.add(player)
         player_by_espn_id[espn_player_id] = player
         record_weekly_stats(espn_player_id, full_name, position, player_json)
+
+    # Matchup-difficulty inputs: this week's NFL schedule, and every team
+    # defense's projected fantasy score (used as a defense-strength proxy).
+    # Best-effort — fetch_week_schedule() returns {} on failure rather than
+    # raising, so a schedule-API outage never breaks the league sync.
+    league.schedule = fetch_week_schedule(week, season)
+    league.dst_projected_points = {
+        str(player.pro_team_id): player.projected_points
+        for player in player_by_espn_id.values()
+        if player.position == "D/ST" and player.projected_points is not None and player.pro_team_id
+    }
 
     db.commit()
     db.refresh(league)

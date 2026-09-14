@@ -17,6 +17,41 @@ from app.config import settings
 
 BASE_URL = "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
 
+# ESPN's public (separate, non-fantasy) sports scoreboard API. Confirmed to
+# use the same numeric NFL team ids as the fantasy API's proTeamId (e.g.
+# Green Bay is 9 in both), so no separate id-mapping table is needed.
+SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
+
+
+def fetch_week_schedule(week: int, season: int) -> dict[int, dict]:
+    """Return {pro_team_id: {"abbreviation", "opponent_id", "opponent_abbreviation"}}
+    for every NFL team playing this week. A team missing from the result is
+    on a bye. Best-effort: returns {} on any network/parsing failure so a
+    schedule outage never breaks a league sync.
+    """
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            resp = client.get(SCOREBOARD_URL, params={"week": week, "seasontype": 2, "year": season})
+        resp.raise_for_status()
+        data = resp.json()
+    except (httpx.HTTPError, ValueError):
+        return {}
+
+    schedule: dict[int, dict] = {}
+    for event in data.get("events", []):
+        competitors = (event.get("competitions") or [{}])[0].get("competitors", [])
+        if len(competitors) != 2:
+            continue
+        a, b = competitors
+        try:
+            id_a, id_b = int(a["team"]["id"]), int(b["team"]["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        abbr_a, abbr_b = a["team"].get("abbreviation", ""), b["team"].get("abbreviation", "")
+        schedule[id_a] = {"abbreviation": abbr_a, "opponent_id": id_b, "opponent_abbreviation": abbr_b}
+        schedule[id_b] = {"abbreviation": abbr_b, "opponent_id": id_a, "opponent_abbreviation": abbr_a}
+    return schedule
+
 
 class ESPNClientError(RuntimeError):
     pass

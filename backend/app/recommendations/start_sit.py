@@ -11,6 +11,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.espn_constants import is_bench_slot
+from app.matchup import get_matchup_context
 from app.models import League, RosterEntry
 from app.recommendations.common import (
     INJURED_OUT_STATUSES,
@@ -24,6 +25,8 @@ def get_start_sit(db: Session, league_id: int, my_team_id: int) -> dict:
     team = get_my_team(db, league_id, my_team_id)
     if team is None:
         return {"error": "team_not_found"}
+
+    league = db.get(League, league_id)
 
     entries = roster_with_players(db, team.id)
     starter_slots = [e for e in entries if not is_bench_slot(e.lineup_slot_id)]
@@ -73,19 +76,20 @@ def get_start_sit(db: Session, league_id: int, my_team_id: int) -> dict:
                     "position": current_starter.position,
                     "projected_points": current_starter.projected_points,
                     "injury_status": current_starter.injury_status,
+                    "matchup": get_matchup_context(league, current_starter.pro_team_id) if league else None,
                 },
                 "recommended_starter": {
                     "name": recommended.full_name,
                     "position": recommended.position,
                     "projected_points": recommended.projected_points,
                     "injury_status": recommended.injury_status,
+                    "matchup": get_matchup_context(league, recommended.pro_team_id) if league else None,
                 },
                 "swap_recommended": swap_needed,
                 "reason": reason,
             }
         )
 
-    league = db.get(League, league_id)
     return {
         "team": team.name,
         "week": league.current_week if league else None,

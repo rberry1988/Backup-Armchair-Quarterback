@@ -35,6 +35,13 @@ class League(Base):
     roster_slot_counts: Mapped[dict] = mapped_column(JSON, default=dict)
     my_team_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     synced_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    # This week's NFL schedule: {str(pro_team_id): {abbreviation, opponent_id,
+    # opponent_abbreviation}}, and each team's D/ST projected fantasy points
+    # ({str(pro_team_id): points}), used together as a matchup-difficulty
+    # proxy (see app/matchup.py). Best-effort — empty if ESPN's schedule
+    # endpoint was unreachable at sync time.
+    schedule: Mapped[dict] = mapped_column(JSON, default=dict)
+    dst_projected_points: Mapped[dict] = mapped_column(JSON, default=dict)
 
     user: Mapped[User] = relationship(back_populates="leagues")
     teams: Mapped[list["Team"]] = relationship(back_populates="league", cascade="all, delete-orphan")
