@@ -8,10 +8,21 @@ import { WaiversTab } from "./components/WaiversTab";
 import { TradesTab } from "./components/TradesTab";
 import { TradeGraderTab } from "./components/TradeGraderTab";
 import { ExpertRankingsTab } from "./components/ExpertRankingsTab";
+import { DepthChartsTab } from "./components/DepthChartsTab";
+import { HandcuffsTab } from "./components/HandcuffsTab";
 import { api, clearToken, getToken } from "./api";
 import type { LeagueSummary, User } from "./types";
 
-type Tab = "setup" | "roster" | "start-sit" | "waivers" | "trades" | "trade-grader" | "expert-rankings";
+type Tab =
+  | "setup"
+  | "roster"
+  | "start-sit"
+  | "waivers"
+  | "trades"
+  | "trade-grader"
+  | "expert-rankings"
+  | "depth-charts"
+  | "handcuffs";
 
 function App() {
   const [authChecked, setAuthChecked] = useState(false);
@@ -121,6 +132,20 @@ function App() {
         >
           Expert Rankings
         </button>
+        <button
+          className={tab === "depth-charts" ? "active" : ""}
+          onClick={() => setTab("depth-charts")}
+          disabled={!canViewTeamTabs}
+        >
+          Depth Charts
+        </button>
+        <button
+          className={tab === "handcuffs" ? "active" : ""}
+          onClick={() => setTab("handcuffs")}
+          disabled={!canViewTeamTabs}
+        >
+          Handcuffs
+        </button>
       </nav>
 
       <main>
@@ -133,6 +158,8 @@ function App() {
           <TradeGraderTab leagueId={league.id} myTeamId={league.my_team_id} />
         )}
         {tab === "expert-rankings" && league && <ExpertRankingsTab leagueId={league.id} />}
+        {tab === "depth-charts" && league && <DepthChartsTab leagueId={league.id} />}
+        {tab === "handcuffs" && league && <HandcuffsTab leagueId={league.id} />}
       </main>
     </div>
   );

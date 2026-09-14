@@ -192,3 +192,36 @@ export interface ExpertRankingsResponse {
   ros?: ExpertRankingGroup;
   weekly?: ExpertRankingGroup;
 }
+
+export interface DepthChartEntry {
+  espn_player_id: number;
+  name: string;
+  position: string;
+  pro_team: string;
+  depth_rank: number;
+  snap_pct: number | null;
+  percent_started: number;
+  projected_points: number | null;
+  injury_status: string;
+  is_free_agent: boolean;
+  owner_team_id: number | null;
+  owner_team_name: string | null;
+}
+
+export type DepthChartByPosition = Record<string, DepthChartEntry[]>;
+export type DepthChartsResponse = { depth_charts: Record<string, DepthChartByPosition> };
+
+export interface HandcuffEntry {
+  rb: {
+    espn_player_id: number;
+    name: string;
+    pro_team: string;
+    depth_rank: number;
+  };
+  handcuff: DepthChartEntry;
+  status: "free_agent" | "mine" | "rostered";
+}
+
+export interface HandcuffsResponse {
+  handcuffs: HandcuffEntry[];
+}

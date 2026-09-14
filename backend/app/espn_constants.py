@@ -34,6 +34,16 @@ LINEUP_SLOT_MAP = {
 
 BENCH_SLOTS = {20, 21, 24}
 
+# proTeamId -> NFL team abbreviation. Verified live against ESPN's public
+# site scoreboard API (site.api.espn.com), which uses this same numeric
+# id scheme — not officially documented, but stable.
+PRO_TEAM_ABBREVIATIONS = {
+    1: "ATL", 2: "BUF", 3: "CHI", 4: "CIN", 5: "CLE", 6: "DAL", 7: "DEN", 8: "DET",
+    9: "GB", 10: "TEN", 11: "IND", 12: "KC", 13: "LV", 14: "LAR", 15: "MIA", 16: "MIN",
+    17: "NE", 18: "NO", 19: "NYG", 20: "NYJ", 21: "PHI", 22: "ARI", 23: "PIT", 24: "LAC",
+    25: "SF", 26: "SEA", 27: "TB", 28: "WSH", 29: "CAR", 30: "JAX", 33: "BAL", 34: "HOU",
+}
+
 INJURY_STATUS_MAP = {
     "ACTIVE": "Active",
     "QUESTIONABLE": "Questionable",
@@ -86,3 +96,7 @@ def lineup_slot_label(slot_id: int) -> str:
 
 def is_bench_slot(slot_id: int) -> bool:
     return slot_id in BENCH_SLOTS
+
+
+def pro_team_abbr(pro_team_id: int | None) -> str:
+    return PRO_TEAM_ABBREVIATIONS.get(pro_team_id, "FA" if not pro_team_id else f"T{pro_team_id}")

@@ -28,6 +28,13 @@ teams, and scoring rules) and gives you three things every week:
   expert consensus rankings, overall and per position, rest-of-season and
   weekly. The Trade Grader also tags any traded player who's in one of
   those top-10 lists with their expert consensus rank and trend.
+- **Depth Charts** — an inferred (not official) depth chart per NFL team
+  and position, ranked by nflverse snap % where available and ESPN's
+  percent-started/projected points otherwise, showing whether each player
+  is a free agent, on your roster, or rostered by another team.
+- **RB Handcuffs** — for each running back on your roster, the next back
+  on their NFL team per the depth chart above, flagged if that handcuff is
+  sitting on waivers.
 
 It only supports **public** ESPN leagues (no ESPN login/cookie flow). If
 your league is private, ESPN's data endpoints return 401s.
@@ -221,6 +228,16 @@ selections or synced data.
   from before these features, delete it and re-sync your league(s) rather
   than expecting new columns to appear on their own (there's no migration
   framework in this app).
+- Depth charts are **inferred, not ESPN's official depth chart** — ESPN
+  doesn't expose one as data (only an HTML page), so players within each
+  NFL team/position are ranked by nflverse's real snap % where a crosswalk
+  match exists, falling back to ESPN's percent-started and then projected
+  points otherwise. The player pool is whatever's synced into this league
+  (rosters + free agents, currently top-200 by ownership — see
+  `sync_service.py`), so very deep, widely-unowned bench players may not
+  appear; that's fine since they wouldn't be meaningful handcuffs anyway.
+  A handcuff is simply the next-ranked player at the same position on the
+  same NFL team as one of your rostered RBs.
 
 ## FantasyPros expert rankings (optional)
 

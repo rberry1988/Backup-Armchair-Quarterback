@@ -1,5 +1,7 @@
 import type {
+  DepthChartsResponse,
   ExpertRankingsResponse,
+  HandcuffsResponse,
   LeagueSummary,
   RosterResponse,
   StartSitResponse,
@@ -104,4 +106,6 @@ export const api = {
     }),
   getExpertRankings: (leagueId: number) =>
     request<ExpertRankingsResponse>(`/api/league/${leagueId}/expert-rankings`),
+  getDepthCharts: (leagueId: number) => request<DepthChartsResponse>(`/api/league/${leagueId}/depth-charts`),
+  getHandcuffs: (leagueId: number) => request<HandcuffsResponse>(`/api/league/${leagueId}/handcuffs`),
 };

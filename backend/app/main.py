@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.auth import create_access_token, get_current_user, hash_password, verify_password
 from app.config import settings
 from app.db import get_db, init_db
+from app.depth_charts import compute_depth_charts, get_rb_handcuffs
 from app.espn_client import ESPNClientError
 from app.models import League, RosterEntry, Team, User
 from app.recommendations.start_sit import get_start_sit
@@ -216,6 +217,19 @@ def expert_rankings(
     if not league.expert_rankings:
         return {"available": False}
     return {"available": True, **league.expert_rankings}
+
+
+@app.get("/api/league/{league_id}/depth-charts")
+def depth_charts(league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    league = _owned_league_or_404(db, league_id, current_user)
+    return {"depth_charts": compute_depth_charts(db, league.id)}
+
+
+@app.get("/api/league/{league_id}/handcuffs")
+def handcuffs(league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    league = _owned_league_or_404(db, league_id, current_user)
+    my_team_id = _require_my_team(league)
+    return {"handcuffs": get_rb_handcuffs(db, league.id, my_team_id)}
 
 
 @app.get("/api/league/{league_id}/teams-with-rosters")
