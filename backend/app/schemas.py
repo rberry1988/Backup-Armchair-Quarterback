@@ -10,6 +10,13 @@ class SetMyTeamRequest(BaseModel):
     team_id: int
 
 
+class TradeGradeRequest(BaseModel):
+    team_a_id: int
+    team_a_sends: list[int]
+    team_b_id: int
+    team_b_sends: list[int]
+
+
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str

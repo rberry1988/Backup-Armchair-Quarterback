@@ -82,6 +82,30 @@ class Player(Base):
     )
 
 
+class PlayerWeekStat(Base):
+    """A per-week snapshot of a player's projected/actual points.
+
+    Unlike Player (which is wiped and rebuilt on every sync since it
+    reflects "right now"), rows here accumulate across syncs so the app
+    can show trends and compute rest-of-season averages. Keyed by
+    (league_id, espn_player_id, week) rather than Player.id since Player
+    rows don't persist identity across syncs.
+    """
+
+    __tablename__ = "player_week_stats"
+    __table_args__ = (UniqueConstraint("league_id", "espn_player_id", "week", name="uq_league_player_week"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"))
+    espn_player_id: Mapped[int] = mapped_column(Integer, index=True)
+    full_name: Mapped[str] = mapped_column(String)
+    position: Mapped[str] = mapped_column(String)
+    week: Mapped[int] = mapped_column(Integer)
+    projected_points: Mapped[float | None] = mapped_column(Float, nullable=True)
+    actual_points: Mapped[float | None] = mapped_column(Float, nullable=True)
+    captured_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+
 class RosterEntry(Base):
     __tablename__ = "roster_entries"
 

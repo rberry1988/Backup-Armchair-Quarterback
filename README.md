@@ -11,6 +11,10 @@ teams, and scoring rules) and gives you three things every week:
 - **Trade Analysis** — your team's weak positions vs. league median, your
   deepest bench positions (trade chips), and other teams whose needs and
   surplus complement yours.
+- **Trade Grader** — pick players either side of a trade would send and get
+  a fairness verdict + letter grade per team, using each player's
+  rest-of-season average projected points (not just this week's number) and
+  a note when the trade addresses a team's positional need.
 
 It only supports **public** ESPN leagues (no ESPN login/cookie flow). If
 your league is private, ESPN's data endpoints return 401s.
@@ -61,10 +65,12 @@ Open http://localhost:5173.
 3. On the **Setup** tab, enter the league ID and season, click **Sync
    League**.
 4. Pick your team from the dropdown.
-5. Use the **Roster**, **Start / Sit**, **Waivers**, and **Trades** tabs.
-   Re-sync any time (e.g. once a week, or after a waiver run) to refresh
-   projections — sync fully replaces the previously synced roster/player
-   data for that league.
+5. Use the **Roster**, **Start / Sit**, **Waivers**, **Trades**, and
+   **Trade Grader** tabs. Re-sync any time (e.g. once a week, or after a
+   waiver run) to refresh projections and pull in the new week's stats —
+   each sync adds to a running per-week history rather than throwing away
+   past weeks, which is what the Trade Grader's rest-of-season values are
+   built from.
 
 Each teammate in your league can register their own account on the same
 running instance and pick their own team — nobody sees anyone else's
@@ -84,9 +90,15 @@ selections or synced data.
 - The trade/waiver/start-sit logic is heuristic decision support, not a
   guarantee — it's meant to surface things worth a second look, not to be
   blindly followed.
-- Data storage is a single SQLite file (`backend/data/fantasy.db`) that
-  gets wiped and rebuilt from ESPN on every sync — there's no history
-  tracked across weeks yet.
+- Data storage is a single SQLite file (`backend/data/fantasy.db`). Team
+  rosters and free agents are wiped and rebuilt from ESPN on every sync
+  (they only reflect "right now"), but per-week player stat snapshots
+  accumulate across syncs — that history powers rest-of-season averages
+  like the Trade Grader's player values.
+- The trade grader's letter grades are a simple heuristic (percentage
+  value gap between the two sides), the same kind of arbitrary-but-useful
+  scale sites like FantasyPros use — treat it as a sanity check, not a
+  verdict.
 - Login sessions are JWTs signed with `JWT_SECRET` (set in `backend/.env`).
   Change it from the placeholder before letting anyone other than you use
   the app — anyone who knows the secret can forge a session for any user

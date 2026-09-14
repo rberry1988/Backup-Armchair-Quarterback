@@ -86,3 +86,32 @@ export interface TradeResponse {
     they_might_want: { position: string }[];
   }[];
 }
+
+export interface RosterPickerPlayer {
+  espn_player_id: number;
+  name: string;
+  position: string;
+  projected_points: number | null;
+}
+
+export interface TeamWithRoster {
+  id: number;
+  name: string;
+  roster: RosterPickerPlayer[];
+}
+
+export interface TradeGradeSide {
+  name: string;
+  sends: { espn_player_id: number; name: string; position: string; ros_value: number }[];
+  receives: { espn_player_id: number; name: string; position: string; ros_value: number }[];
+  value_sent: number;
+  value_received: number;
+  grade: string;
+  notes: string[];
+}
+
+export interface TradeGradeResponse {
+  team_a: TradeGradeSide;
+  team_b: TradeGradeSide;
+  verdict: string;
+}

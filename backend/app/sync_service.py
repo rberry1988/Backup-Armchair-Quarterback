@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.espn_client import ESPNClient
 from app.espn_constants import is_bench_slot, lineup_slot_label, position_from_id
-from app.models import League, Player, RosterEntry, Team
-from app.scoring import build_scoring_rules, extract_player_core, player_points_for_week
+from app.models import League, Player, PlayerWeekStat, RosterEntry, Team
+from app.scoring import all_weekly_points, build_scoring_rules, extract_player_core, player_points_for_week
 
 
 def _team_name(team_json: dict) -> str:
@@ -43,6 +43,36 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
     league.synced_at = datetime.datetime.utcnow()
     db.flush()
     league_id = league.id
+
+    # Weekly stat snapshots accumulate across syncs (unlike Team/Player
+    # below) so trend/rest-of-season features have history to work with.
+    existing_week_stats = {
+        (row.espn_player_id, row.week): row
+        for row in db.query(PlayerWeekStat).filter(PlayerWeekStat.league_id == league_id).all()
+    }
+
+    def record_weekly_stats(espn_player_id: int, full_name: str, position: str, player_json: dict) -> None:
+        now = datetime.datetime.utcnow()
+        for wk, pts in all_weekly_points(player_json).items():
+            key = (espn_player_id, wk)
+            row = existing_week_stats.get(key)
+            if row is None:
+                row = PlayerWeekStat(
+                    league_id=league_id,
+                    espn_player_id=espn_player_id,
+                    full_name=full_name,
+                    position=position,
+                    week=wk,
+                )
+                db.add(row)
+                existing_week_stats[key] = row
+            if pts.get("projected") is not None:
+                row.projected_points = pts["projected"]
+            if pts.get("actual") is not None:
+                row.actual_points = pts["actual"]
+            row.full_name = full_name
+            row.position = position
+            row.captured_at = now
 
     # Wipe and rebuild teams/players/rosters for this league — simplest
     # correct approach for a single-user personal app synced on demand.
@@ -80,12 +110,14 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
             player = player_by_espn_id.get(espn_player_id)
             if player is None:
                 core = extract_player_core(player_json)
+                position = position_from_id(core["default_position_id"])
+                full_name = core["full_name"] or "Unknown"
                 projected, actual = player_points_for_week(player_json, week)
                 player = Player(
                     espn_player_id=espn_player_id,
                     league_id=league_id,
-                    full_name=core["full_name"] or "Unknown",
-                    position=position_from_id(core["default_position_id"]),
+                    full_name=full_name,
+                    position=position,
                     pro_team_id=core["pro_team_id"] or 0,
                     injury_status=core["injury_status"],
                     percent_owned=core["percent_owned"],
@@ -98,6 +130,7 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
                 db.add(player)
                 db.flush()
                 player_by_espn_id[espn_player_id] = player
+                record_weekly_stats(espn_player_id, full_name, position, player_json)
             else:
                 player.is_free_agent = False
 
@@ -122,12 +155,14 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
         if espn_player_id is None or espn_player_id in player_by_espn_id:
             continue
         core = extract_player_core(player_json)
+        position = position_from_id(core["default_position_id"])
+        full_name = core["full_name"] or "Unknown"
         projected, actual = player_points_for_week(player_json, week)
         player = Player(
             espn_player_id=espn_player_id,
             league_id=league_id,
-            full_name=core["full_name"] or "Unknown",
-            position=position_from_id(core["default_position_id"]),
+            full_name=full_name,
+            position=position,
             pro_team_id=core["pro_team_id"] or 0,
             injury_status=core["injury_status"],
             percent_owned=core["percent_owned"],
@@ -139,6 +174,7 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
         )
         db.add(player)
         player_by_espn_id[espn_player_id] = player
+        record_weekly_stats(espn_player_id, full_name, position, player_json)
 
     db.commit()
     db.refresh(league)

@@ -215,3 +215,100 @@ button:disabled {
   padding: 0.3rem 0.7rem;
   font-size: 0.8rem;
 }
+
+.trade-builder {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+
+.trade-side {
+  flex: 1 1 280px;
+  min-width: 260px;
+  background: #14161c;
+  border: 1px solid #2a2d34;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.trade-side label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: #9aa0a6;
+  margin-bottom: 0.75rem;
+}
+
+.trade-side h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.player-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.player-checklist li label {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  color: #e8eaed;
+  font-size: 0.85rem;
+  margin-bottom: 0;
+}
+
+.pos-tag {
+  color: #9aa0a6;
+  font-size: 0.75rem;
+}
+
+.trade-result {
+  margin-top: 1.25rem;
+  border-top: 1px solid #2a2d34;
+  padding-top: 1rem;
+}
+
+.verdict {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.grade-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.grade-A {
+  background: #1e4620;
+  color: #81c995;
+}
+
+.grade-B {
+  background: #2a3d5c;
+  color: #8ab4f8;
+}
+
+.grade-C {
+  background: #5c4a1e;
+  color: #fdd663;
+}
+
+.grade-D {
+  background: #5c2b29;
+  color: #f28b82;
+}

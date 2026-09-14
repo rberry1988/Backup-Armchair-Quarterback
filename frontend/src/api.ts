@@ -2,6 +2,8 @@ import type {
   LeagueSummary,
   RosterResponse,
   StartSitResponse,
+  TeamWithRoster,
+  TradeGradeResponse,
   TradeResponse,
   User,
   WaiverResponse,
@@ -78,4 +80,22 @@ export const api = {
   getStartSit: (leagueId: number) => request<StartSitResponse>(`/api/league/${leagueId}/start-sit`),
   getWaivers: (leagueId: number) => request<WaiverResponse>(`/api/league/${leagueId}/waivers`),
   getTrades: (leagueId: number) => request<TradeResponse>(`/api/league/${leagueId}/trades`),
+  getTeamsWithRosters: (leagueId: number) =>
+    request<TeamWithRoster[]>(`/api/league/${leagueId}/teams-with-rosters`),
+  gradeTrade: (
+    leagueId: number,
+    teamAId: number,
+    teamASends: number[],
+    teamBId: number,
+    teamBSends: number[]
+  ) =>
+    request<TradeGradeResponse>(`/api/league/${leagueId}/trade-grade`, {
+      method: "POST",
+      body: JSON.stringify({
+        team_a_id: teamAId,
+        team_a_sends: teamASends,
+        team_b_id: teamBId,
+        team_b_sends: teamBSends,
+      }),
+    }),
 };

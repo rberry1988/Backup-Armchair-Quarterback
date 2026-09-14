@@ -8,9 +8,16 @@ from app.db import get_db, init_db
 from app.espn_client import ESPNClientError
 from app.models import League, RosterEntry, Team, User
 from app.recommendations.start_sit import get_start_sit
-from app.recommendations.trades import get_trade_suggestions
+from app.recommendations.trades import get_trade_suggestions, grade_trade
 from app.recommendations.waivers import get_waiver_targets
-from app.schemas import LoginRequest, RegisterRequest, SetMyTeamRequest, SyncRequest, TokenResponse
+from app.schemas import (
+    LoginRequest,
+    RegisterRequest,
+    SetMyTeamRequest,
+    SyncRequest,
+    TokenResponse,
+    TradeGradeRequest,
+)
 from app.sync_service import sync_league
 
 app = FastAPI(title="Fantasy Football Copilot")
@@ -194,3 +201,51 @@ def trades(league_id: int, db: Session = Depends(get_db), current_user: User = D
     league = _owned_league_or_404(db, league_id, current_user)
     my_team_id = _require_my_team(league)
     return get_trade_suggestions(db, league.id, my_team_id)
+
+
+@app.get("/api/league/{league_id}/teams-with-rosters")
+def teams_with_rosters(
+    league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    league = _owned_league_or_404(db, league_id, current_user)
+    teams = db.query(Team).filter(Team.league_id == league.id).order_by(Team.name).all()
+    result = []
+    for team in teams:
+        entries = db.query(RosterEntry).filter(RosterEntry.team_id == team.id).all()
+        result.append(
+            {
+                "id": team.espn_team_id,
+                "name": team.name,
+                "roster": [
+                    {
+                        "espn_player_id": e.player.espn_player_id,
+                        "name": e.player.full_name,
+                        "position": e.player.position,
+                        "projected_points": e.player.projected_points,
+                    }
+                    for e in entries
+                ],
+            }
+        )
+    return result
+
+
+@app.post("/api/league/{league_id}/trade-grade")
+def trade_grade(
+    league_id: int,
+    payload: TradeGradeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    league = _owned_league_or_404(db, league_id, current_user)
+    result = grade_trade(
+        db,
+        league.id,
+        team_a_espn_id=payload.team_a_id,
+        team_a_sends=payload.team_a_sends,
+        team_b_espn_id=payload.team_b_id,
+        team_b_sends=payload.team_b_sends,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result

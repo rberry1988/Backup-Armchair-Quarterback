@@ -6,10 +6,11 @@ import { RosterTab } from "./components/RosterTab";
 import { StartSitTab } from "./components/StartSitTab";
 import { WaiversTab } from "./components/WaiversTab";
 import { TradesTab } from "./components/TradesTab";
+import { TradeGraderTab } from "./components/TradeGraderTab";
 import { api, clearToken, getToken } from "./api";
 import type { LeagueSummary, User } from "./types";
 
-type Tab = "setup" | "roster" | "start-sit" | "waivers" | "trades";
+type Tab = "setup" | "roster" | "start-sit" | "waivers" | "trades" | "trade-grader";
 
 function App() {
   const [authChecked, setAuthChecked] = useState(false);
@@ -105,6 +106,13 @@ function App() {
         >
           Trades
         </button>
+        <button
+          className={tab === "trade-grader" ? "active" : ""}
+          onClick={() => setTab("trade-grader")}
+          disabled={!canViewTeamTabs}
+        >
+          Trade Grader
+        </button>
       </nav>
 
       <main>
@@ -113,6 +121,9 @@ function App() {
         {tab === "start-sit" && league && <StartSitTab leagueId={league.id} />}
         {tab === "waivers" && league && <WaiversTab leagueId={league.id} />}
         {tab === "trades" && league && <TradesTab leagueId={league.id} />}
+        {tab === "trade-grader" && league && (
+          <TradeGraderTab leagueId={league.id} myTeamId={league.my_team_id} />
+        )}
       </main>
     </div>
   );

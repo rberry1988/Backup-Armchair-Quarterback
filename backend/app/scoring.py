@@ -41,24 +41,33 @@ def build_scoring_rules(league_json: dict) -> list[dict]:
     return rules
 
 
-def _find_stat_entry(player_json: dict, week: int, source_id: int) -> dict | None:
+def all_weekly_points(player_json: dict) -> dict[int, dict[str, float | None]]:
+    """Return {week: {"projected": ..., "actual": ...}} for every week ESPN
+    has a stat entry for on this player (past weeks played + near-term
+    projections). Used to build season history in one pass instead of one
+    network round-trip per week.
+    """
+    weeks: dict[int, dict[str, float | None]] = {}
     for entry in player_json.get("stats", []) or []:
-        if (
-            entry.get("statSourceId") == source_id
-            and entry.get("scoringPeriodId") == week
-            and entry.get("statSplitTypeId") == STAT_SPLIT_WEEKLY
-        ):
-            return entry
-    return None
+        if entry.get("statSplitTypeId") != STAT_SPLIT_WEEKLY:
+            continue
+        week = entry.get("scoringPeriodId")
+        source = entry.get("statSourceId")
+        if week is None or source not in (STAT_SOURCE_PROJECTED, STAT_SOURCE_ACTUAL):
+            continue
+        bucket = weeks.setdefault(week, {"projected": None, "actual": None})
+        applied = entry.get("appliedTotal")
+        if source == STAT_SOURCE_PROJECTED:
+            bucket["projected"] = applied
+        else:
+            bucket["actual"] = applied
+    return weeks
 
 
 def player_points_for_week(player_json: dict, week: int) -> tuple[float | None, float | None]:
     """Return (projected_points, actual_points) for a player in a given week."""
-    projected_entry = _find_stat_entry(player_json, week, STAT_SOURCE_PROJECTED)
-    actual_entry = _find_stat_entry(player_json, week, STAT_SOURCE_ACTUAL)
-    projected = projected_entry.get("appliedTotal") if projected_entry else None
-    actual = actual_entry.get("appliedTotal") if actual_entry else None
-    return projected, actual
+    bucket = all_weekly_points(player_json).get(week, {})
+    return bucket.get("projected"), bucket.get("actual")
 
 
 def extract_player_core(player_json: dict) -> dict[str, Any]:
