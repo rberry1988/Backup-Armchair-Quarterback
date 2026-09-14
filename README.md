@@ -12,12 +12,18 @@ teams, and scoring rules) and gives you three things every week:
   deepest bench positions (trade chips), and other teams whose needs and
   surplus complement yours.
 
-It only supports **public** ESPN leagues (no login/cookie flow). If your
-league is private, ESPN's data endpoints return 401s.
+It only supports **public** ESPN leagues (no ESPN login/cookie flow). If
+your league is private, ESPN's data endpoints return 401s.
+
+Multiple people can use the same instance: each person registers their own
+account and their synced league(s), team selection, and recommendations
+are private to them, even if two people happen to sync the same ESPN
+league.
 
 ## Architecture
 
-- `backend/` — FastAPI + SQLite. Pulls league settings/scoring rules,
+- `backend/` — FastAPI + SQLite. Handles user accounts (email/password,
+  JWT sessions) and, per user, pulls league settings/scoring rules,
   teams, rosters, and free agents straight from ESPN's fantasy API
   (undocumented but stable community-known endpoints) and computes
   recommendations server-side.
@@ -48,15 +54,21 @@ Open http://localhost:5173.
 
 ## Using it
 
-1. Find your league ID in the ESPN URL:
+1. Register an account on the login screen (just an email + password —
+   this is a local account, unrelated to your ESPN login).
+2. Find your league ID in the ESPN URL:
    `fantasy.espn.com/football/league?leagueId=123456` → `123456`.
-2. On the **Setup** tab, enter the league ID and season, click **Sync
+3. On the **Setup** tab, enter the league ID and season, click **Sync
    League**.
-3. Pick your team from the dropdown.
-4. Use the **Roster**, **Start / Sit**, **Waivers**, and **Trades** tabs.
+4. Pick your team from the dropdown.
+5. Use the **Roster**, **Start / Sit**, **Waivers**, and **Trades** tabs.
    Re-sync any time (e.g. once a week, or after a waiver run) to refresh
    projections — sync fully replaces the previously synced roster/player
    data for that league.
+
+Each teammate in your league can register their own account on the same
+running instance and pick their own team — nobody sees anyone else's
+selections or synced data.
 
 ## Notes and limitations
 
@@ -75,3 +87,7 @@ Open http://localhost:5173.
 - Data storage is a single SQLite file (`backend/data/fantasy.db`) that
   gets wiped and rebuilt from ESPN on every sync — there's no history
   tracked across weeks yet.
+- Login sessions are JWTs signed with `JWT_SECRET` (set in `backend/.env`).
+  Change it from the placeholder before letting anyone other than you use
+  the app — anyone who knows the secret can forge a session for any user
+  id. Sessions last 2 weeks by default (`JWT_EXPIRE_MINUTES`).

@@ -8,8 +8,8 @@ interface Props {
 }
 
 export function SetupPanel({ league, onLeagueChange }: Props) {
-  const [leagueId, setLeagueId] = useState(() => localStorage.getItem("leagueId") || "");
-  const [season, setSeason] = useState(() => localStorage.getItem("season") || String(new Date().getFullYear()));
+  const [leagueId, setLeagueId] = useState(league ? String(league.espn_league_id) : "");
+  const [season, setSeason] = useState(league ? String(league.season) : String(new Date().getFullYear()));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,8 +20,6 @@ export function SetupPanel({ league, onLeagueChange }: Props) {
       const parsedId = Number(leagueId);
       const parsedSeason = Number(season);
       const result = await api.sync(parsedId, parsedSeason);
-      localStorage.setItem("leagueId", leagueId);
-      localStorage.setItem("season", season);
       onLeagueChange(result);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to sync league. Check the ID and season.");

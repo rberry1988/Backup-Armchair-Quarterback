@@ -2,16 +2,32 @@ from __future__ import annotations
 
 import datetime
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Boolean
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Boolean, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True)
+    hashed_password: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
+
+    leagues: Mapped[list["League"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
 class League(Base):
     __tablename__ = "leagues"
+    __table_args__ = (UniqueConstraint("user_id", "espn_league_id", "season", name="uq_user_league_season"),)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)  # ESPN league id
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    espn_league_id: Mapped[int] = mapped_column(Integer)
     season: Mapped[int] = mapped_column(Integer)
     name: Mapped[str] = mapped_column(String, default="")
     current_week: Mapped[int] = mapped_column(Integer, default=1)
@@ -20,6 +36,7 @@ class League(Base):
     my_team_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     synced_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
 
+    user: Mapped[User] = relationship(back_populates="leagues")
     teams: Mapped[list["Team"]] = relationship(back_populates="league", cascade="all, delete-orphan")
 
 

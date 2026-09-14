@@ -19,8 +19,8 @@ def _team_name(team_json: dict) -> str:
     )
 
 
-def sync_league(db: Session, league_id: int, season: int) -> League:
-    client = ESPNClient(league_id=league_id, season=season)
+def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> League:
+    client = ESPNClient(league_id=espn_league_id, season=season)
     data = client.get_league()
 
     week = data.get("status", {}).get("latestScoringPeriod") or data.get("scoringPeriodId", 1)
@@ -28,17 +28,21 @@ def sync_league(db: Session, league_id: int, season: int) -> League:
     scoring_rules = build_scoring_rules(data)
     roster_slot_counts = settings_json.get("rosterSettings", {}).get("lineupSlotCounts", {})
 
-    league = db.get(League, league_id)
+    league = (
+        db.query(League)
+        .filter(League.user_id == user_id, League.espn_league_id == espn_league_id, League.season == season)
+        .first()
+    )
     if league is None:
-        league = League(id=league_id)
+        league = League(user_id=user_id, espn_league_id=espn_league_id, season=season)
         db.add(league)
-    league.season = season
-    league.name = settings_json.get("name", f"League {league_id}")
+    league.name = settings_json.get("name", f"League {espn_league_id}")
     league.current_week = week
     league.scoring_rules = scoring_rules
     league.roster_slot_counts = roster_slot_counts
     league.synced_at = datetime.datetime.utcnow()
     db.flush()
+    league_id = league.id
 
     # Wipe and rebuild teams/players/rosters for this league — simplest
     # correct approach for a single-user personal app synced on demand.

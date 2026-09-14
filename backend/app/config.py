@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     espn_s2: str | None = None
     espn_swid: str | None = None
     database_url: str = "sqlite:///./data/fantasy.db"
+    jwt_secret: str = "dev-secret-change-me"
+    jwt_expire_minutes: int = 60 * 24 * 14  # 2 weeks
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

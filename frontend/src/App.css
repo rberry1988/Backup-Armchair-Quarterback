@@ -153,3 +153,65 @@ button:disabled {
 .partner-card h4 {
   margin: 0 0 0.4rem;
 }
+
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.login-card {
+  background: #171a21;
+  border: 1px solid #2a2d34;
+  border-radius: 10px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.login-card h1 {
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.login-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: #9aa0a6;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #8ab4f8;
+  padding: 0;
+  align-self: center;
+}
+
+.link-button:hover {
+  background: none;
+  text-decoration: underline;
+}
+
+.header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: #9aa0a6;
+}
+
+.logout-button {
+  background: none;
+  border: 1px solid #3c4043;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+}

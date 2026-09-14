@@ -15,8 +15,14 @@ export interface ScoringRule {
   points: number;
 }
 
+export interface User {
+  id: number;
+  email: string;
+}
+
 export interface LeagueSummary {
   id: number;
+  espn_league_id: number;
   season: number;
   name: string;
   current_week: number;

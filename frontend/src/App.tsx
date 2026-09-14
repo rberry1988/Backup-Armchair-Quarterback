@@ -1,33 +1,62 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+import { LoginPage } from "./components/LoginPage";
 import { SetupPanel } from "./components/SetupPanel";
 import { RosterTab } from "./components/RosterTab";
 import { StartSitTab } from "./components/StartSitTab";
 import { WaiversTab } from "./components/WaiversTab";
 import { TradesTab } from "./components/TradesTab";
-import { api } from "./api";
-import type { LeagueSummary } from "./types";
+import { api, clearToken, getToken } from "./api";
+import type { LeagueSummary, User } from "./types";
 
 type Tab = "setup" | "roster" | "start-sit" | "waivers" | "trades";
 
 function App() {
+  const [authChecked, setAuthChecked] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
   const [league, setLeague] = useState<LeagueSummary | null>(null);
   const [tab, setTab] = useState<Tab>("setup");
 
   useEffect(() => {
-    const savedId = localStorage.getItem("leagueId");
-    if (savedId) {
-      api
-        .getLeague(Number(savedId))
-        .then((l) => {
-          setLeague(l);
-          setTab(l.my_team_id ? "start-sit" : "setup");
-        })
-        .catch(() => {
-          /* not synced yet, stay on setup */
-        });
+    if (!getToken()) {
+      setAuthChecked(true);
+      return;
     }
+    loadSession();
   }, []);
+
+  async function loadSession() {
+    try {
+      const me = await api.me();
+      setUser(me);
+      const leagues = await api.listLeagues();
+      if (leagues.length > 0) {
+        const mostRecent = leagues[0];
+        setLeague(mostRecent);
+        setTab(mostRecent.my_team_id != null ? "start-sit" : "setup");
+      }
+    } catch {
+      clearToken();
+      setUser(null);
+    } finally {
+      setAuthChecked(true);
+    }
+  }
+
+  function handleLogout() {
+    clearToken();
+    setUser(null);
+    setLeague(null);
+    setTab("setup");
+  }
+
+  if (!authChecked) {
+    return null;
+  }
+
+  if (!user) {
+    return <LoginPage onLoggedIn={loadSession} />;
+  }
 
   const canViewTeamTabs = league?.my_team_id != null;
 
@@ -36,6 +65,12 @@ function App() {
       <header>
         <h1>Fantasy Football Copilot</h1>
         {league && <span className="league-badge">{league.name}</span>}
+        <div className="header-right">
+          <span>{user.email}</span>
+          <button className="logout-button" onClick={handleLogout}>
+            Log out
+          </button>
+        </div>
       </header>
 
       <nav className="tabs">

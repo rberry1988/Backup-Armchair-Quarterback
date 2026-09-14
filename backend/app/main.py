@@ -1,14 +1,16 @@
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.auth import create_access_token, get_current_user, hash_password, verify_password
 from app.db import get_db, init_db
 from app.espn_client import ESPNClientError
-from app.models import League, RosterEntry, Team
+from app.models import League, RosterEntry, Team, User
 from app.recommendations.start_sit import get_start_sit
 from app.recommendations.trades import get_trade_suggestions
 from app.recommendations.waivers import get_waiver_targets
-from app.schemas import SetMyTeamRequest, SyncRequest
+from app.schemas import LoginRequest, RegisterRequest, SetMyTeamRequest, SyncRequest, TokenResponse
 from app.sync_service import sync_league
 
 app = FastAPI(title="Fantasy Football Copilot")
@@ -26,10 +28,46 @@ def on_startup():
     init_db()
 
 
-def _league_or_404(db: Session, league_id: int) -> League:
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/auth/register", response_model=TokenResponse)
+def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+    user = User(email=payload.email.lower(), hashed_password=hash_password(payload.password))
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="An account with that email already exists") from exc
+    db.refresh(user)
+    return TokenResponse(access_token=create_access_token(user.id))
+
+
+@app.post("/api/auth/login", response_model=TokenResponse)
+def login(payload: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == payload.email.lower()).first()
+    if user is None or not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect email or password")
+    return TokenResponse(access_token=create_access_token(user.id))
+
+
+@app.get("/api/auth/me")
+def me(current_user: User = Depends(get_current_user)):
+    return {"id": current_user.id, "email": current_user.email}
+
+
+# ---------------------------------------------------------------------------
+# Leagues (all scoped to the authenticated user)
+# ---------------------------------------------------------------------------
+
+
+def _owned_league_or_404(db: Session, league_id: int, current_user: User) -> League:
     league = db.get(League, league_id)
-    if league is None:
-        raise HTTPException(status_code=404, detail="League not synced yet. POST /api/sync first.")
+    if league is None or league.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="League not found")
     return league
 
 
@@ -39,19 +77,11 @@ def _require_my_team(league: League) -> int:
     return league.my_team_id
 
 
-@app.post("/api/sync")
-def sync(payload: SyncRequest, db: Session = Depends(get_db)):
-    try:
-        league = sync_league(db, league_id=payload.league_id, season=payload.season)
-    except ESPNClientError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return _league_summary(db, league)
-
-
 def _league_summary(db: Session, league: League) -> dict:
     teams = db.query(Team).filter(Team.league_id == league.id).order_by(Team.name).all()
     return {
         "id": league.id,
+        "espn_league_id": league.espn_league_id,
         "season": league.season,
         "name": league.name,
         "current_week": league.current_week,
@@ -74,20 +104,45 @@ def _league_summary(db: Session, league: League) -> dict:
     }
 
 
+@app.get("/api/leagues")
+def list_leagues(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    leagues = (
+        db.query(League)
+        .filter(League.user_id == current_user.id)
+        .order_by(League.synced_at.desc())
+        .all()
+    )
+    return [_league_summary(db, league) for league in leagues]
+
+
+@app.post("/api/sync")
+def sync(
+    payload: SyncRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        league = sync_league(db, user_id=current_user.id, espn_league_id=payload.league_id, season=payload.season)
+    except ESPNClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return _league_summary(db, league)
+
+
 @app.get("/api/league/{league_id}")
-def get_league(league_id: int, db: Session = Depends(get_db)):
-    league = _league_or_404(db, league_id)
+def get_league(league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    league = _owned_league_or_404(db, league_id, current_user)
     return _league_summary(db, league)
 
 
 @app.post("/api/league/{league_id}/my-team")
-def set_my_team(league_id: int, payload: SetMyTeamRequest, db: Session = Depends(get_db)):
-    league = _league_or_404(db, league_id)
-    team = (
-        db.query(Team)
-        .filter(Team.league_id == league_id, Team.espn_team_id == payload.team_id)
-        .first()
-    )
+def set_my_team(
+    league_id: int,
+    payload: SetMyTeamRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    league = _owned_league_or_404(db, league_id, current_user)
+    team = db.query(Team).filter(Team.league_id == league.id, Team.espn_team_id == payload.team_id).first()
     if team is None:
         raise HTTPException(status_code=404, detail="Team not found in this league")
     league.my_team_id = payload.team_id
@@ -96,10 +151,10 @@ def set_my_team(league_id: int, payload: SetMyTeamRequest, db: Session = Depends
 
 
 @app.get("/api/league/{league_id}/roster")
-def get_roster(league_id: int, db: Session = Depends(get_db)):
-    league = _league_or_404(db, league_id)
+def get_roster(league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    league = _owned_league_or_404(db, league_id, current_user)
     my_team_id = _require_my_team(league)
-    team = db.query(Team).filter(Team.league_id == league_id, Team.espn_team_id == my_team_id).first()
+    team = db.query(Team).filter(Team.league_id == league.id, Team.espn_team_id == my_team_id).first()
     entries = db.query(RosterEntry).filter(RosterEntry.team_id == team.id).all()
     return {
         "team": team.name,
@@ -121,21 +176,21 @@ def get_roster(league_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/api/league/{league_id}/start-sit")
-def start_sit(league_id: int, db: Session = Depends(get_db)):
-    league = _league_or_404(db, league_id)
+def start_sit(league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    league = _owned_league_or_404(db, league_id, current_user)
     my_team_id = _require_my_team(league)
-    return get_start_sit(db, league_id, my_team_id)
+    return get_start_sit(db, league.id, my_team_id)
 
 
 @app.get("/api/league/{league_id}/waivers")
-def waivers(league_id: int, db: Session = Depends(get_db)):
-    league = _league_or_404(db, league_id)
+def waivers(league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    league = _owned_league_or_404(db, league_id, current_user)
     my_team_id = _require_my_team(league)
-    return get_waiver_targets(db, league_id, my_team_id)
+    return get_waiver_targets(db, league.id, my_team_id)
 
 
 @app.get("/api/league/{league_id}/trades")
-def trades(league_id: int, db: Session = Depends(get_db)):
-    league = _league_or_404(db, league_id)
+def trades(league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    league = _owned_league_or_404(db, league_id, current_user)
     my_team_id = _require_my_team(league)
-    return get_trade_suggestions(db, league_id, my_team_id)
+    return get_trade_suggestions(db, league.id, my_team_id)
