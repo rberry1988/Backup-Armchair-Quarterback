@@ -335,3 +335,27 @@ button:disabled {
   background: #2a2d34;
   color: #9aa0a6;
 }
+
+.trend-tag-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.trend-tag {
+  font-size: 0.75rem;
+  white-space: nowrap;
+  color: #c4c7c5;
+}
+
+.trend-up {
+  color: #81c995;
+}
+
+.trend-down {
+  color: #f28b82;
+}
+
+.trend-flat {
+  color: #9aa0a6;
+}

@@ -19,6 +19,7 @@ from app.schemas import (
     TradeGradeRequest,
 )
 from app.sync_service import sync_league
+from app.trends import get_player_trend
 
 app = FastAPI(title="Fantasy Football Copilot")
 
@@ -176,6 +177,7 @@ def get_roster(league_id: int, db: Session = Depends(get_db), current_user: User
                 "actual_points": e.player.actual_points,
                 "injury_status": e.player.injury_status,
                 "percent_owned": e.player.percent_owned,
+                "trend": get_player_trend(db, league.id, e.player.espn_player_id, e.player.position),
             }
             for e in entries
         ],

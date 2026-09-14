@@ -19,6 +19,10 @@ teams, and scoring rules) and gives you three things every week:
   their opponent this week and a tough/average/favorable label, and
   **suggested FAAB bids** on waiver adds — see limitations below for how
   both are approximated.
+- **Usage trends** — Roster and Waivers show each player's last few played
+  weeks of targets, carries, receptions, or pass attempts (whichever's
+  relevant to their position), with an up/down/flat label — the kind of
+  opportunity shift that tends to move before fantasy points do.
 
 It only supports **public** ESPN leagues (no ESPN login/cookie flow). If
 your league is private, ESPN's data endpoints return 401s.
@@ -120,3 +124,15 @@ selections or synced data.
   a % of a 100-point budget) — not read from your league's actual FAAB
   budget or waiver settings. Ignore them if your league uses waiver
   priority instead of FAAB.
+- Usage trends only cover the raw stats ESPN exposes per week (pass
+  attempts/completions/yards, carries/rush yards, targets/receptions/rec
+  yards) — there's no snap-count or red-zone-usage data available from
+  ESPN's API, so those aren't tracked. The trend label compares the first
+  half of the last 4 played weeks to the second half; it needs at least 2
+  played weeks of history to show anything; K and D/ST don't have a
+  meaningful stat here and are skipped.
+- Schema changes to `PlayerWeekStat` (adding the raw usage columns) only
+  apply to a freshly created database — if you're upgrading an existing
+  `backend/data/fantasy.db` from before this feature, delete it and
+  re-sync your league(s) rather than expecting the new columns to appear
+  on their own (there's no migration framework in this app).

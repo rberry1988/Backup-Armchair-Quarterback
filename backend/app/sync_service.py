@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.espn_client import ESPNClient, fetch_week_schedule
 from app.espn_constants import is_bench_slot, lineup_slot_label, position_from_id
 from app.models import League, Player, PlayerWeekStat, RosterEntry, Team
-from app.scoring import all_weekly_points, build_scoring_rules, extract_player_core, player_points_for_week
+from app.scoring import all_weekly_data, build_scoring_rules, extract_player_core, player_points_for_week
 
 
 def _team_name(team_json: dict) -> str:
@@ -53,7 +53,7 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
 
     def record_weekly_stats(espn_player_id: int, full_name: str, position: str, player_json: dict) -> None:
         now = datetime.datetime.utcnow()
-        for wk, pts in all_weekly_points(player_json).items():
+        for wk, data in all_weekly_data(player_json).items():
             key = (espn_player_id, wk)
             row = existing_week_stats.get(key)
             if row is None:
@@ -66,10 +66,14 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
                 )
                 db.add(row)
                 existing_week_stats[key] = row
-            if pts.get("projected") is not None:
-                row.projected_points = pts["projected"]
-            if pts.get("actual") is not None:
-                row.actual_points = pts["actual"]
+            if data.get("projected") is not None:
+                row.projected_points = data["projected"]
+            if data.get("actual") is not None:
+                row.actual_points = data["actual"]
+            if data.get("raw_stats_actual"):
+                row.raw_stats_actual = data["raw_stats_actual"]
+            if data.get("raw_stats_projected"):
+                row.raw_stats_projected = data["raw_stats_projected"]
             row.full_name = full_name
             row.position = position
             row.captured_at = now

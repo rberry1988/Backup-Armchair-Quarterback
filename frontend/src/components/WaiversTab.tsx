@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { WaiverResponse } from "../types";
 import { api } from "../api";
 import { MatchupTag } from "./MatchupTag";
+import { TrendTag } from "./TrendTag";
 
 export function WaiversTab({ leagueId }: { leagueId: number }) {
   const [data, setData] = useState<WaiverResponse | null>(null);
@@ -47,6 +48,7 @@ export function WaiversTab({ leagueId }: { leagueId: number }) {
                 <th>Drop</th>
                 <th>Net Gain</th>
                 <th>Suggested FAAB</th>
+                <th>Usage Trend</th>
               </tr>
             </thead>
             <tbody>
@@ -61,6 +63,9 @@ export function WaiversTab({ leagueId }: { leagueId: number }) {
                   <td>{s.drop_candidate ? s.drop_candidate.name : "-"}</td>
                   <td>+{s.point_upgrade}</td>
                   <td>{s.suggested_faab_pct}%</td>
+                  <td>
+                    <TrendTag trend={s.add.trend} />
+                  </td>
                 </tr>
               ))}
             </tbody>

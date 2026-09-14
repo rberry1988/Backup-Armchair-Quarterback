@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { RosterResponse } from "../types";
 import { api } from "../api";
+import { TrendTag } from "./TrendTag";
 
 export function RosterTab({ leagueId }: { leagueId: number }) {
   const [data, setData] = useState<RosterResponse | null>(null);
@@ -21,6 +22,7 @@ export function RosterTab({ leagueId }: { leagueId: number }) {
       <h2>
         {data.team} &mdash; Week {data.week}
       </h2>
+      <p className="hint">Trend columns show the last few played weeks' usage (targets, carries, ...), oldest to newest.</p>
       <table>
         <thead>
           <tr>
@@ -31,6 +33,7 @@ export function RosterTab({ leagueId }: { leagueId: number }) {
             <th>Actual</th>
             <th>Status</th>
             <th>% Owned</th>
+            <th>Usage Trend</th>
           </tr>
         </thead>
         <tbody>
@@ -43,6 +46,9 @@ export function RosterTab({ leagueId }: { leagueId: number }) {
               <td>{p.actual_points ?? "-"}</td>
               <td>{p.injury_status !== "ACTIVE" ? <span className="badge">{p.injury_status}</span> : "-"}</td>
               <td>{p.percent_owned.toFixed(1)}%</td>
+              <td>
+                <TrendTag trend={p.trend} />
+              </td>
             </tr>
           ))}
         </tbody>

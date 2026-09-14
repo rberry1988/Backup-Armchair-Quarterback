@@ -32,6 +32,17 @@ export interface LeagueSummary {
   teams: TeamSummary[];
 }
 
+export interface TrendStat {
+  label: string;
+  recent: number[];
+  trend: "up" | "down" | "flat" | null;
+}
+
+export interface PlayerTrend {
+  weeks_counted: number;
+  stats: Record<string, TrendStat>;
+}
+
 export interface RosterPlayer {
   name: string;
   position: string;
@@ -41,6 +52,7 @@ export interface RosterPlayer {
   actual_points: number | null;
   injury_status: string;
   percent_owned: number;
+  trend: PlayerTrend | null;
 }
 
 export interface RosterResponse {
@@ -87,6 +99,7 @@ export interface WaiverSuggestion {
     percent_owned: number;
     injury_status: string;
     matchup: MatchupContext | null;
+    trend: PlayerTrend | null;
   };
   drop_candidate: { name: string; projected_points: number | null } | null;
   point_upgrade: number;

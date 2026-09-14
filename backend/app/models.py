@@ -110,6 +110,12 @@ class PlayerWeekStat(Base):
     week: Mapped[int] = mapped_column(Integer)
     projected_points: Mapped[float | None] = mapped_column(Float, nullable=True)
     actual_points: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Raw usage/opportunity counts (targets, carries, receptions, ...) for
+    # this week, keyed by short name — see TRACKED_RAW_STAT_IDS in
+    # scoring.py. "actual" is what happened; "projected" is ESPN's
+    # near-term expectation, useful for an upcoming week with no actual yet.
+    raw_stats_actual: Mapped[dict] = mapped_column(JSON, default=dict)
+    raw_stats_projected: Mapped[dict] = mapped_column(JSON, default=dict)
     captured_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
 
 

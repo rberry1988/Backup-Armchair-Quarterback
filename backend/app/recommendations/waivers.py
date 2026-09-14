@@ -10,6 +10,7 @@ from app.recommendations.common import (
     points_or_default,
     roster_with_players,
 )
+from app.trends import get_player_trend
 
 POSITIONS = ["QB", "RB", "WR", "TE", "K", "D/ST"]
 
@@ -68,6 +69,7 @@ def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int 
                             "percent_owned": round(candidate.percent_owned, 1),
                             "injury_status": candidate.injury_status,
                             "matchup": get_matchup_context(league, candidate.pro_team_id) if league else None,
+                            "trend": get_player_trend(db, league_id, candidate.espn_player_id, candidate.position),
                         },
                         "drop_candidate": (
                             {
