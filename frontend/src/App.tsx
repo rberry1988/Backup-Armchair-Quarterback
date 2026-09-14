@@ -7,10 +7,11 @@ import { StartSitTab } from "./components/StartSitTab";
 import { WaiversTab } from "./components/WaiversTab";
 import { TradesTab } from "./components/TradesTab";
 import { TradeGraderTab } from "./components/TradeGraderTab";
+import { ExpertRankingsTab } from "./components/ExpertRankingsTab";
 import { api, clearToken, getToken } from "./api";
 import type { LeagueSummary, User } from "./types";
 
-type Tab = "setup" | "roster" | "start-sit" | "waivers" | "trades" | "trade-grader";
+type Tab = "setup" | "roster" | "start-sit" | "waivers" | "trades" | "trade-grader" | "expert-rankings";
 
 function App() {
   const [authChecked, setAuthChecked] = useState(false);
@@ -113,6 +114,13 @@ function App() {
         >
           Trade Grader
         </button>
+        <button
+          className={tab === "expert-rankings" ? "active" : ""}
+          onClick={() => setTab("expert-rankings")}
+          disabled={!canViewTeamTabs}
+        >
+          Expert Rankings
+        </button>
       </nav>
 
       <main>
@@ -124,6 +132,7 @@ function App() {
         {tab === "trade-grader" && league && (
           <TradeGraderTab leagueId={league.id} myTeamId={league.my_team_id} />
         )}
+        {tab === "expert-rankings" && league && <ExpertRankingsTab leagueId={league.id} />}
       </main>
     </div>
   );

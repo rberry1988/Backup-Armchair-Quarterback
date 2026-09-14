@@ -48,6 +48,12 @@ class League(Base):
     # matchup ratings when available (see app/matchup.py); empty if
     # nflverse was unreachable or the player-id crosswalk had no match.
     points_allowed_by_position: Mapped[dict] = mapped_column(JSON, default=dict)
+    # FantasyPros expert consensus rankings: top 10 overall + top 10 per
+    # position, for rest-of-season and this week (see
+    # app/fantasypros_client.py). Empty unless FANTASYPROS_API_KEY is set;
+    # a free-tier key hard-caps this at 10 results per query, so it's only
+    # populated for elite/startable players, never full-roster coverage.
+    expert_rankings: Mapped[dict] = mapped_column(JSON, default=dict)
 
     user: Mapped[User] = relationship(back_populates="leagues")
     teams: Mapped[list["Team"]] = relationship(back_populates="league", cascade="all, delete-orphan")

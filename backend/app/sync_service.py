@@ -12,6 +12,7 @@ from app.advanced_stats import (
 )
 from app.espn_client import ESPNClient, fetch_week_schedule
 from app.espn_constants import is_bench_slot, lineup_slot_label, position_from_id
+from app.fantasypros_client import fetch_expert_rankings_bundle, infer_scoring_format
 from app.models import League, Player, PlayerWeekStat, RosterEntry, Team
 from app.nflverse_client import fetch_id_crosswalk, fetch_snap_counts, fetch_weekly_player_stats
 from app.scoring import all_weekly_data, build_scoring_rules, extract_player_core
@@ -231,6 +232,17 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
                 row.captured_at = now
 
         league.points_allowed_by_position = compute_points_allowed_by_position(weekly_stats_rows, through_week=week)
+
+    # FantasyPros expert consensus rankings (top 10 overall + per position,
+    # rest-of-season + this week) — optional, only if FANTASYPROS_API_KEY
+    # is configured; fetch_expert_rankings_bundle() returns {} on any
+    # failure, in which case we leave whatever was synced last time alone
+    # rather than clobbering it with an empty result.
+    new_expert_rankings = fetch_expert_rankings_bundle(
+        season, week, infer_scoring_format(scoring_rules), crosswalk
+    )
+    if new_expert_rankings:
+        league.expert_rankings = new_expert_rankings
 
     db.commit()
     db.refresh(league)

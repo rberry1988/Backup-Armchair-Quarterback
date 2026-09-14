@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     # talking to the backend on :8000); a same-origin production
     # deployment behind a reverse proxy (see deploy/) never hits this.
     cors_origins: str = "http://localhost:5173"
+    # Optional: enables the Expert Rankings tab and Trade Grader ECR
+    # context (see app/fantasypros_client.py). Everything degrades to
+    # "not available" without it — no key is required for the rest of
+    # the app.
+    fantasypros_api_key: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

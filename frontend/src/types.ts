@@ -135,10 +135,26 @@ export interface TeamWithRoster {
   roster: RosterPickerPlayer[];
 }
 
+export interface ExpertContext {
+  ecr_rank: number;
+  pos_rank: string;
+  trend: "up" | "down" | "steady";
+  rank_min: number | null;
+  rank_max: number | null;
+}
+
+export interface TradeGradePlayer {
+  espn_player_id: number;
+  name: string;
+  position: string;
+  ros_value: number;
+  expert: ExpertContext | null;
+}
+
 export interface TradeGradeSide {
   name: string;
-  sends: { espn_player_id: number; name: string; position: string; ros_value: number }[];
-  receives: { espn_player_id: number; name: string; position: string; ros_value: number }[];
+  sends: TradeGradePlayer[];
+  receives: TradeGradePlayer[];
   value_sent: number;
   value_received: number;
   grade: string;
@@ -149,4 +165,30 @@ export interface TradeGradeResponse {
   team_a: TradeGradeSide;
   team_b: TradeGradeSide;
   verdict: string;
+}
+
+export interface ExpertRankingPlayer {
+  fantasypros_id: number;
+  name: string;
+  team: string;
+  position: string;
+  pos_rank: string;
+  ecr_rank: number;
+  ecr_delta: number | null;
+  rank_min: number | null;
+  rank_max: number | null;
+  rank_std: number | null;
+  page_url: string;
+  espn_player_id: number | null;
+}
+
+export type ExpertRankingGroup = Record<string, ExpertRankingPlayer[]>;
+
+export interface ExpertRankingsResponse {
+  available: boolean;
+  scoring?: string;
+  week?: number;
+  updated_at?: string;
+  ros?: ExpertRankingGroup;
+  weekly?: ExpertRankingGroup;
 }

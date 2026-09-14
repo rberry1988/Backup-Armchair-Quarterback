@@ -24,6 +24,10 @@ teams, and scoring rules) and gives you three things every week:
   available) real target share and snap % from nflverse — an up/down/flat
   label on whichever's most relevant to their position, since these
   opportunity shifts tend to move before fantasy points do.
+- **Expert Rankings** (optional, needs a FantasyPros API key) — top-10
+  expert consensus rankings, overall and per position, rest-of-season and
+  weekly. The Trade Grader also tags any traded player who's in one of
+  those top-10 lists with their expert consensus rank and trend.
 
 It only supports **public** ESPN leagues (no ESPN login/cookie flow). If
 your league is private, ESPN's data endpoints return 401s.
@@ -217,6 +221,38 @@ selections or synced data.
   from before these features, delete it and re-sync your league(s) rather
   than expecting new columns to appear on their own (there's no migration
   framework in this app).
+
+## FantasyPros expert rankings (optional)
+
+Set `FANTASYPROS_API_KEY` in `backend/.env` (get a free key at
+[fantasypros.com/api](https://www.fantasypros.com/api/)) to enable the
+**Expert Rankings** tab and Trade Grader ECR badges. This is the one
+external data source in this app that's a poll of real analysts rather
+than a stats computation — everything else here (ESPN, nflverse) is
+projection- or history-based.
+
+**The free tier hard-caps every query at the top 10 results**, confirmed
+against the live API (not documented by FantasyPros) — `position`,
+`player_id`, and `filters` query params don't lift it. That means this
+data is only ever useful for elite/startable players:
+
+- The **Expert Rankings** tab shows the top 10 overall and top 10 per
+  position, for both rest-of-season and this week.
+- The **Trade Grader** tags a traded player with their expert consensus
+  rank (e.g. "RB1") and trend arrow *only* when that player happens to be
+  in one of those top-10 lists — most trade pieces won't be, and that's
+  expected, not a bug.
+
+It will never power full-roster or waiver-wire ECR overlays on this tier;
+those players are below the top 10 by definition. A paid FantasyPros API
+tier without the cap would make broader integration worth revisiting.
+
+Player IDs are joined via the same dynastyprocess crosswalk used for
+nflverse (`fantasypros_id` → `espn_id`); defenses aren't in that crosswalk
+so their rankings show up in the tab but can't be tagged onto ESPN D/ST
+players elsewhere. Like nflverse, this is entirely best-effort — no key,
+or any request failure, just means the feature reports itself as
+unavailable rather than breaking sync.
 
 ## nflverse data (advanced stats + real matchup ratings)
 

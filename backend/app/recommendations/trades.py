@@ -15,6 +15,7 @@ import statistics
 
 from sqlalchemy.orm import Session
 
+from app.fantasypros_client import get_expert_context
 from app.models import League, Player, PlayerWeekStat, Team
 from app.recommendations.common import points_or_default, roster_with_players
 
@@ -164,6 +165,28 @@ def _ros_value(db: Session, league: League, espn_player_id: int) -> tuple[float,
     return 0.0, f"Player {espn_player_id}", "?"
 
 
+def _expert_summary(context: dict | None) -> dict | None:
+    """Trim a fantasypros_client expert-context dict down to what the
+    Trade Grader UI needs, present only when the player is in the
+    (free-tier-limited) top-10 list for their position."""
+    if context is None:
+        return None
+    delta = context.get("ecr_delta")
+    if delta is None or delta == 0:
+        trend = "steady"
+    elif delta < 0:
+        trend = "up"  # FantasyPros convention: negative delta = rank improved
+    else:
+        trend = "down"
+    return {
+        "ecr_rank": context["ecr_rank"],
+        "pos_rank": context["pos_rank"],
+        "trend": trend,
+        "rank_min": context.get("rank_min"),
+        "rank_max": context.get("rank_max"),
+    }
+
+
 def _grade_for_pct_edge(pct_edge: float) -> str:
     """pct_edge is how much value a side gained, as % of total trade value."""
     if pct_edge < 5:
@@ -218,7 +241,15 @@ def grade_trade(
         players = []
         for pid in espn_player_ids:
             value, name, position = _ros_value(db, league, pid)
-            players.append({"espn_player_id": pid, "name": name, "position": position, "ros_value": round(value, 1)})
+            players.append(
+                {
+                    "espn_player_id": pid,
+                    "name": name,
+                    "position": position,
+                    "ros_value": round(value, 1),
+                    "expert": _expert_summary(get_expert_context(league.expert_rankings, pid)),
+                }
+            )
         return players
 
     a_sends = describe(team_a_sends)

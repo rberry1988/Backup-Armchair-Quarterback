@@ -1,4 +1,5 @@
 import type {
+  ExpertRankingsResponse,
   LeagueSummary,
   RosterResponse,
   StartSitResponse,
@@ -101,4 +102,6 @@ export const api = {
         team_b_sends: teamBSends,
       }),
     }),
+  getExpertRankings: (leagueId: number) =>
+    request<ExpertRankingsResponse>(`/api/league/${leagueId}/expert-rankings`),
 };

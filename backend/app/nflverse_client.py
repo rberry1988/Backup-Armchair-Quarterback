@@ -49,7 +49,13 @@ def _cached_download(url: str, cache_filename: str) -> str | None:
 
 
 def fetch_id_crosswalk() -> dict[int, dict[str, str]]:
-    """Return {espn_id: {"gsis_id": ..., "pfr_id": ...}}."""
+    """Return {espn_id: {"gsis_id": ..., "pfr_id": ..., "fantasypros_id": ...}}.
+
+    This dynastyprocess file isn't nflverse-specific — it's a general
+    player-id crosswalk — but it lives here since nflverse was the first
+    consumer. app/fantasypros_client.py also uses the fantasypros_id
+    column to join FantasyPros' rankings onto our ESPN-keyed players.
+    """
     path = _cached_download(CROSSWALK_URL, "db_playerids.csv")
     if path is None:
         return {}
@@ -67,6 +73,7 @@ def fetch_id_crosswalk() -> dict[int, dict[str, str]]:
                 result[espn_id_int] = {
                     "gsis_id": row.get("gsis_id") or "",
                     "pfr_id": row.get("pfr_id") or "",
+                    "fantasypros_id": row.get("fantasypros_id") or "",
                 }
     except (OSError, csv.Error):
         return {}

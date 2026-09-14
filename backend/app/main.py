@@ -208,6 +208,16 @@ def trades(league_id: int, db: Session = Depends(get_db), current_user: User = D
     return get_trade_suggestions(db, league.id, my_team_id)
 
 
+@app.get("/api/league/{league_id}/expert-rankings")
+def expert_rankings(
+    league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    league = _owned_league_or_404(db, league_id, current_user)
+    if not league.expert_rankings:
+        return {"available": False}
+    return {"available": True, **league.expert_rankings}
+
+
 @app.get("/api/league/{league_id}/teams-with-rosters")
 def teams_with_rosters(
     league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { TeamWithRoster, TradeGradeResponse } from "../types";
+import type { TeamWithRoster, TradeGradePlayer, TradeGradeResponse, TradeGradeSide } from "../types";
 import { ApiError, api } from "../api";
 
 export function TradeGraderTab({ leagueId, myTeamId }: { leagueId: number; myTeamId: number | null }) {
@@ -161,21 +161,17 @@ function TeamSide({
   );
 }
 
-function TradeResultSide({
-  side,
-}: {
-  side: { name: string; sends: { name: string; ros_value: number }[]; receives: { name: string; ros_value: number }[]; value_sent: number; value_received: number; grade: string; notes: string[] };
-}) {
+function TradeResultSide({ side }: { side: TradeGradeSide }) {
   return (
     <div className="trade-side">
       <h3>
         {side.name} <span className={`grade-badge grade-${side.grade}`}>{side.grade}</span>
       </h3>
       <p>
-        Sends: {side.sends.map((p) => `${p.name} (${p.ros_value})`).join(", ")} — total {side.value_sent}
+        Sends: <PlayerList players={side.sends} /> — total {side.value_sent}
       </p>
       <p>
-        Receives: {side.receives.map((p) => `${p.name} (${p.ros_value})`).join(", ")} — total {side.value_received}
+        Receives: <PlayerList players={side.receives} /> — total {side.value_received}
       </p>
       {side.notes.length > 0 && (
         <ul>
@@ -185,5 +181,26 @@ function TradeResultSide({
         </ul>
       )}
     </div>
+  );
+}
+
+const ECR_ARROW: Record<string, string> = { up: "↑", down: "↓", steady: "→" };
+
+function PlayerList({ players }: { players: TradeGradePlayer[] }) {
+  return (
+    <>
+      {players.map((p, i) => (
+        <span key={p.espn_player_id}>
+          {i > 0 && ", "}
+          {p.name} ({p.ros_value})
+          {p.expert && (
+            <span className="ecr-badge" title={`Expert range: ${p.expert.rank_min}-${p.expert.rank_max}`}>
+              {" "}
+              {p.expert.pos_rank} {ECR_ARROW[p.expert.trend]}
+            </span>
+          )}
+        </span>
+      ))}
+    </>
   );
 }
