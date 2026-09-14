@@ -10,19 +10,40 @@ import { TradeGraderTab } from "./components/TradeGraderTab";
 import { ExpertRankingsTab } from "./components/ExpertRankingsTab";
 import { DepthChartsTab } from "./components/DepthChartsTab";
 import { HandcuffsTab } from "./components/HandcuffsTab";
+import { AlertsTab } from "./components/AlertsTab";
+import { ScheduleTab } from "./components/ScheduleTab";
+import { BenchPointsTab } from "./components/BenchPointsTab";
 import { api, clearToken, getToken } from "./api";
 import type { LeagueSummary, User } from "./types";
 
 type Tab =
   | "setup"
+  | "alerts"
   | "roster"
   | "start-sit"
   | "waivers"
+  | "schedule"
   | "trades"
   | "trade-grader"
   | "expert-rankings"
   | "depth-charts"
-  | "handcuffs";
+  | "handcuffs"
+  | "bench-points";
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "setup", label: "Setup" },
+  { id: "alerts", label: "Alerts" },
+  { id: "roster", label: "Roster" },
+  { id: "start-sit", label: "Start / Sit" },
+  { id: "waivers", label: "Waivers" },
+  { id: "schedule", label: "Schedule" },
+  { id: "trades", label: "Trades" },
+  { id: "trade-grader", label: "Trade Grader" },
+  { id: "expert-rankings", label: "Expert Rankings" },
+  { id: "depth-charts", label: "Depth Charts" },
+  { id: "handcuffs", label: "Handcuffs" },
+  { id: "bench-points", label: "Bench Points" },
+];
 
 function App() {
   const [authChecked, setAuthChecked] = useState(false);
@@ -46,7 +67,7 @@ function App() {
       if (leagues.length > 0) {
         const mostRecent = leagues[0];
         setLeague(mostRecent);
-        setTab(mostRecent.my_team_id != null ? "start-sit" : "setup");
+        setTab(mostRecent.my_team_id != null ? "alerts" : "setup");
       }
     } catch {
       clearToken();
@@ -87,65 +108,16 @@ function App() {
       </header>
 
       <nav className="tabs">
-        <button className={tab === "setup" ? "active" : ""} onClick={() => setTab("setup")}>
-          Setup
-        </button>
-        <button
-          className={tab === "roster" ? "active" : ""}
-          onClick={() => setTab("roster")}
-          disabled={!canViewTeamTabs}
-        >
-          Roster
-        </button>
-        <button
-          className={tab === "start-sit" ? "active" : ""}
-          onClick={() => setTab("start-sit")}
-          disabled={!canViewTeamTabs}
-        >
-          Start / Sit
-        </button>
-        <button
-          className={tab === "waivers" ? "active" : ""}
-          onClick={() => setTab("waivers")}
-          disabled={!canViewTeamTabs}
-        >
-          Waivers
-        </button>
-        <button
-          className={tab === "trades" ? "active" : ""}
-          onClick={() => setTab("trades")}
-          disabled={!canViewTeamTabs}
-        >
-          Trades
-        </button>
-        <button
-          className={tab === "trade-grader" ? "active" : ""}
-          onClick={() => setTab("trade-grader")}
-          disabled={!canViewTeamTabs}
-        >
-          Trade Grader
-        </button>
-        <button
-          className={tab === "expert-rankings" ? "active" : ""}
-          onClick={() => setTab("expert-rankings")}
-          disabled={!canViewTeamTabs}
-        >
-          Expert Rankings
-        </button>
-        <button
-          className={tab === "depth-charts" ? "active" : ""}
-          onClick={() => setTab("depth-charts")}
-          disabled={!canViewTeamTabs}
-        >
-          Depth Charts
-        </button>
-        <button
-          className={tab === "handcuffs" ? "active" : ""}
-          onClick={() => setTab("handcuffs")}
-          disabled={!canViewTeamTabs}
-        >
-          Handcuffs
-        </button>
+        {TABS.map(({ id, label }) => (
+          <button
+            key={id}
+            className={tab === id ? "active" : ""}
+            onClick={() => setTab(id)}
+            disabled={id !== "setup" && !canViewTeamTabs}
+          >
+            {label}
+          </button>
+        ))}
       </nav>
 
       <main>
@@ -160,6 +132,9 @@ function App() {
         {tab === "expert-rankings" && league && <ExpertRankingsTab leagueId={league.id} />}
         {tab === "depth-charts" && league && <DepthChartsTab leagueId={league.id} />}
         {tab === "handcuffs" && league && <HandcuffsTab leagueId={league.id} />}
+        {tab === "alerts" && league && <AlertsTab leagueId={league.id} />}
+        {tab === "schedule" && league && <ScheduleTab leagueId={league.id} />}
+        {tab === "bench-points" && league && <BenchPointsTab leagueId={league.id} />}
       </main>
     </div>
   );

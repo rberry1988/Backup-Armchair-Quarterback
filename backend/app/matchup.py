@@ -36,8 +36,15 @@ def get_matchup_context(league: League, pro_team_id: int | None, position: str |
     info = league.schedule.get(str(pro_team_id))
     if not info or info.get("opponent_id") is None:
         return None
-    opponent_abbr = info.get("opponent_abbreviation")
+    return rate_opponent(league, info.get("opponent_abbreviation"), info["opponent_id"], position)
 
+
+def rate_opponent(
+    league: League, opponent_abbr: str | None, opponent_id: int | None, position: str | None = None
+) -> dict | None:
+    """How tough is this specific opponent for `position`? Split out from
+    get_matchup_context() so future weeks (app/schedule_outlook.py) can be
+    rated the same way as the current one."""
     points_allowed = league.points_allowed_by_position or {}
     if position and opponent_abbr in points_allowed and position in points_allowed[opponent_abbr]:
         all_values = [
@@ -58,8 +65,7 @@ def get_matchup_context(league: League, pro_team_id: int | None, position: str |
             }
 
     dst_scores = league.dst_projected_points or {}
-    opponent_id = info["opponent_id"]
-    opponent_score = dst_scores.get(str(opponent_id))
+    opponent_score = dst_scores.get(str(opponent_id)) if opponent_id is not None else None
     if opponent_score is None:
         return None
     # Higher D/ST projected score = a stronger, tougher defense.

@@ -1,7 +1,11 @@
 import type {
+  AlertsResponse,
+  BenchPointsResponse,
+  ChangesResponse,
   DepthChartsResponse,
   ExpertRankingsResponse,
   HandcuffsResponse,
+  ScheduleOutlookResponse,
   LeagueSummary,
   RosterResponse,
   StartSitResponse,
@@ -108,4 +112,9 @@ export const api = {
     request<ExpertRankingsResponse>(`/api/league/${leagueId}/expert-rankings`),
   getDepthCharts: (leagueId: number) => request<DepthChartsResponse>(`/api/league/${leagueId}/depth-charts`),
   getHandcuffs: (leagueId: number) => request<HandcuffsResponse>(`/api/league/${leagueId}/handcuffs`),
+  getChanges: (leagueId: number) => request<ChangesResponse>(`/api/league/${leagueId}/changes`),
+  getAlerts: (leagueId: number) => request<AlertsResponse>(`/api/league/${leagueId}/alerts`),
+  getScheduleOutlook: (leagueId: number) =>
+    request<ScheduleOutlookResponse>(`/api/league/${leagueId}/schedule-outlook`),
+  getBenchPoints: (leagueId: number) => request<BenchPointsResponse>(`/api/league/${leagueId}/bench-points`),
 };

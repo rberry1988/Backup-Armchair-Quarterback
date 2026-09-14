@@ -54,6 +54,23 @@ class League(Base):
     # a free-tier key hard-caps this at 10 results per query, so it's only
     # populated for elite/startable players, never full-roster coverage.
     expert_rankings: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Whole regular season's NFL matchups, {str(week): {str(pro_team_id):
+    # {abbreviation, opponent_id, opponent_abbreviation}}}, and the bye week
+    # derived from it per team ({str(pro_team_id): week}). Powers the
+    # multi-week schedule outlook and bye planner (app/schedule_outlook.py);
+    # `schedule` above stays the current week's copy the matchup tags read.
+    season_schedule: Mapped[dict] = mapped_column(JSON, default=dict)
+    bye_weeks: Mapped[dict] = mapped_column(JSON, default=dict)
+    # What changed between the last two syncs — injury flips, roster moves,
+    # ownership swings, projection swings (see app/sync_diff.py), plus the
+    # timestamps the comparison spans.
+    sync_changes: Mapped[dict] = mapped_column(JSON, default=dict)
+    previous_synced_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    # Per-week "points left on bench" history, keyed by ESPN team id then
+    # week: {str(espn_team_id): {str(week): {...}}}. Filled lazily by the
+    # bench-points endpoint (each past week costs an ESPN boxscore request,
+    # so weeks already computed are never re-fetched). See app/bench_points.py.
+    bench_points: Mapped[dict] = mapped_column(JSON, default=dict)
 
     user: Mapped[User] = relationship(back_populates="leagues")
     teams: Mapped[list["Team"]] = relationship(back_populates="league", cascade="all, delete-orphan")

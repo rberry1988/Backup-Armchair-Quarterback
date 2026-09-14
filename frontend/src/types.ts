@@ -43,6 +43,17 @@ export interface PlayerTrend {
   stats: Record<string, TrendStat>;
 }
 
+export interface PlayerConsistency {
+  weeks_counted: number;
+  average: number;
+  floor: number;
+  ceiling: number;
+  stdev: number;
+  boom_rate: number;
+  bust_rate: number;
+  label: "steady" | "streaky" | "boom/bust" | "unrated";
+}
+
 export interface RosterPlayer {
   name: string;
   position: string;
@@ -53,6 +64,7 @@ export interface RosterPlayer {
   injury_status: string;
   percent_owned: number;
   trend: PlayerTrend | null;
+  consistency: PlayerConsistency | null;
 }
 
 export interface RosterResponse {
@@ -224,4 +236,125 @@ export interface HandcuffEntry {
 
 export interface HandcuffsResponse {
   handcuffs: HandcuffEntry[];
+}
+
+export interface SyncChange {
+  espn_player_id: number;
+  name: string;
+  position: string;
+  owner: string | null;
+  kind: "injury" | "roster_move" | "ownership" | "projection";
+  detail: string;
+  magnitude: number;
+}
+
+export interface ChangesResponse {
+  available: boolean;
+  since?: string | null;
+  at?: string;
+  items?: SyncChange[];
+  synced_at?: string | null;
+}
+
+export interface AlertReplacement {
+  espn_player_id: number;
+  name: string;
+  position: string;
+  pro_team: string;
+  projected_points: number | null;
+  percent_owned: number;
+  injury_status: string;
+}
+
+export interface RosterAlert {
+  player: {
+    espn_player_id: number;
+    name: string;
+    position: string;
+    pro_team: string;
+    slot: string;
+    is_starter: boolean;
+    injury_status: string;
+    projected_points: number | null;
+  };
+  reason: string;
+  severity: number;
+  backup: (DepthChartEntry & { status: "free_agent" | "mine" | "rostered" }) | null;
+  replacements: AlertReplacement[];
+}
+
+export interface AlertsResponse {
+  team?: string;
+  week?: number;
+  alerts: RosterAlert[];
+  error?: string;
+}
+
+export interface OutlookWeek {
+  week: number;
+  is_bye: boolean;
+  opponent: string | null;
+  label: string | null;
+  defense_rank?: number | null;
+  defense_teams_ranked?: number | null;
+}
+
+export interface OutlookSummary {
+  score: number | null;
+  label: string | null;
+  byes: number;
+}
+
+export interface PlayerOutlook {
+  espn_player_id: number;
+  name: string;
+  position: string;
+  pro_team: string;
+  bye_week: number | null;
+  upcoming: OutlookWeek[];
+  upcoming_summary: OutlookSummary;
+  playoffs: OutlookWeek[];
+  playoff_summary: OutlookSummary;
+}
+
+export interface ByeWeekGroup {
+  week: number;
+  count: number;
+  players: { espn_player_id: number; name: string; position: string; pro_team: string }[];
+  warnings: string[];
+}
+
+export interface ScheduleOutlookResponse {
+  team?: string;
+  current_week?: number;
+  weeks_ahead?: number;
+  playoff_weeks?: number[];
+  available?: boolean;
+  outlook: PlayerOutlook[];
+  byes: ByeWeekGroup[];
+  error?: string;
+}
+
+export interface BenchWeek {
+  week: number;
+  actual_points: number;
+  optimal_points: number;
+  left_on_bench: number;
+  missed: {
+    slot: string;
+    started: { name: string; points: number };
+    should_have_started: { name: string; points: number };
+    points_missed: number;
+  }[];
+}
+
+export interface BenchPointsResponse {
+  weeks: BenchWeek[];
+  weeks_counted: number;
+  total_left_on_bench: number;
+  average_left_on_bench: number;
+  total_actual: number;
+  total_optimal: number;
+  worst_week: BenchWeek | null;
+  perfect_weeks: number;
 }

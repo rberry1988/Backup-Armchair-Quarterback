@@ -3,12 +3,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.alerts import get_roster_alerts
 from app.auth import create_access_token, get_current_user, hash_password, verify_password
+from app.bench_points import get_bench_points
 from app.config import settings
+from app.consistency import get_consistency
 from app.db import get_db, init_db
 from app.depth_charts import compute_depth_charts, get_rb_handcuffs
 from app.espn_client import ESPNClientError
 from app.models import League, RosterEntry, Team, User
+from app.schedule_outlook import get_schedule_outlook
 from app.recommendations.start_sit import get_start_sit
 from app.recommendations.trades import get_trade_suggestions, grade_trade
 from app.recommendations.waivers import get_waiver_targets
@@ -168,6 +172,7 @@ def get_roster(league_id: int, db: Session = Depends(get_db), current_user: User
     team = db.query(Team).filter(Team.league_id == league.id, Team.espn_team_id == my_team_id).first()
     entries = db.query(RosterEntry).filter(RosterEntry.team_id == team.id).all()
     trends = get_player_trends(db, league.id, [(e.player.espn_player_id, e.player.position) for e in entries])
+    consistency = get_consistency(db, league.id, [e.player.espn_player_id for e in entries])
     return {
         "team": team.name,
         "week": league.current_week,
@@ -182,6 +187,7 @@ def get_roster(league_id: int, db: Session = Depends(get_db), current_user: User
                 "injury_status": e.player.injury_status,
                 "percent_owned": e.player.percent_owned,
                 "trend": trends.get(e.player.espn_player_id),
+                "consistency": consistency.get(e.player.espn_player_id),
             }
             for e in entries
         ],
@@ -230,6 +236,43 @@ def handcuffs(league_id: int, db: Session = Depends(get_db), current_user: User 
     league = _owned_league_or_404(db, league_id, current_user)
     my_team_id = _require_my_team(league)
     return {"handcuffs": get_rb_handcuffs(db, league.id, my_team_id)}
+
+
+@app.get("/api/league/{league_id}/changes")
+def changes(league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    league = _owned_league_or_404(db, league_id, current_user)
+    if not league.sync_changes:
+        return {"available": False, "synced_at": league.synced_at}
+    return {"available": True, **league.sync_changes}
+
+
+@app.get("/api/league/{league_id}/alerts")
+def alerts(league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    league = _owned_league_or_404(db, league_id, current_user)
+    my_team_id = _require_my_team(league)
+    return get_roster_alerts(db, league.id, my_team_id)
+
+
+@app.get("/api/league/{league_id}/schedule-outlook")
+def schedule_outlook(
+    league_id: int,
+    weeks: int = 4,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    league = _owned_league_or_404(db, league_id, current_user)
+    my_team_id = _require_my_team(league)
+    return get_schedule_outlook(db, league.id, my_team_id, weeks_ahead=max(1, min(weeks, 10)))
+
+
+@app.get("/api/league/{league_id}/bench-points")
+def bench_points(league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    league = _owned_league_or_404(db, league_id, current_user)
+    my_team_id = _require_my_team(league)
+    try:
+        return get_bench_points(db, league, my_team_id)
+    except ESPNClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.get("/api/league/{league_id}/teams-with-rosters")

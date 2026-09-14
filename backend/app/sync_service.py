@@ -10,12 +10,13 @@ from app.advanced_stats import (
     index_snaps_by_pfr,
     index_weekly_by_gsis,
 )
-from app.espn_client import ESPNClient, fetch_week_schedule
+from app.espn_client import ESPNClient, compute_bye_weeks, fetch_season_schedule, fetch_week_schedule
 from app.espn_constants import is_bench_slot, lineup_slot_label, position_from_id
 from app.fantasypros_client import fetch_expert_rankings_bundle, infer_scoring_format
 from app.models import League, Player, PlayerWeekStat, RosterEntry, Team
 from app.nflverse_client import fetch_id_crosswalk, fetch_snap_counts, fetch_weekly_player_stats
 from app.scoring import all_weekly_data, build_scoring_rules, extract_player_core
+from app.sync_diff import diff_players, snapshot_players
 
 
 def _team_name(team_json: dict) -> str:
@@ -48,9 +49,14 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
     league.current_week = week
     league.scoring_rules = scoring_rules
     league.roster_slot_counts = roster_slot_counts
+    previous_synced_at = league.synced_at
     league.synced_at = datetime.datetime.utcnow()
     db.flush()
     league_id = league.id
+
+    # Snapshot the outgoing player pool before the wipe below, so the
+    # rebuilt one can be diffed against it into a "what changed" digest.
+    previous_players = snapshot_players(db, league_id) if previous_synced_at else {}
 
     # Weekly stat snapshots accumulate across syncs (unlike Team/Player
     # below) so trend/rest-of-season features have history to work with.
@@ -190,6 +196,18 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
         player_by_espn_id[espn_player_id] = player
         record_weekly_stats(espn_player_id, full_name, position, weekly_data)
 
+    db.flush()
+
+    # Diff the rebuilt player pool against the pre-wipe snapshot into the
+    # "what changed since last sync" digest (app/sync_diff.py).
+    if previous_players:
+        league.previous_synced_at = previous_synced_at
+        league.sync_changes = {
+            "since": previous_synced_at.isoformat() if previous_synced_at else None,
+            "at": league.synced_at.isoformat(),
+            "items": diff_players(previous_players, snapshot_players(db, league_id)),
+        }
+
     # Matchup-difficulty inputs: this week's NFL schedule, and every team
     # defense's projected fantasy score (used as a defense-strength proxy
     # fallback when real points-allowed data below isn't available).
@@ -201,6 +219,16 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
         for player in player_by_espn_id.values()
         if player.position == "D/ST" and player.projected_points is not None and player.pro_team_id
     }
+
+    # The whole season's matchups (cached on disk for a day) drive the
+    # multi-week outlook and bye planner. Keep whatever was stored last
+    # sync if this fetch came back empty, rather than blanking those tabs.
+    season_schedule = fetch_season_schedule(season)
+    if season_schedule:
+        league.season_schedule = {
+            str(wk): {str(tid): info for tid, info in teams.items()} for wk, teams in season_schedule.items()
+        }
+        league.bye_weeks = {str(tid): bye for tid, bye in compute_bye_weeks(season_schedule).items()}
 
     # Advanced stats nflverse has that ESPN doesn't (target share, air
     # yards share, WOPR, snap %), plus real points-allowed-by-position —

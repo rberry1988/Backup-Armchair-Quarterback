@@ -35,6 +35,21 @@ teams, and scoring rules) and gives you three things every week:
 - **RB Handcuffs** — for each running back on your roster, the next back
   on their NFL team per the depth chart above, flagged if that handcuff is
   sitting on waivers.
+- **Alerts** — the landing tab: every injured or bye-week player in your
+  lineup, paired with who'd absorb their role on their NFL team and the
+  best replacements actually available on your waiver wire. Below it, a
+  **what changed since your last sync** digest — injury flips, roster moves
+  across the league, ownership spikes, and projection swings.
+- **Schedule** — a bye-week planner that flags weeks where enough players
+  at one position are off to leave a starting slot uncoverable, plus a
+  multi-week matchup outlook (next four weeks and the fantasy playoff
+  weeks) rated the same way as the current week's matchup tags.
+- **Floor / ceiling** — Roster tags each player steady, streaky, or
+  boom/bust from their own weekly scoring history, with the floor and
+  ceiling they've actually posted.
+- **Bench Points** — every past week's real starting lineup scored against
+  the best lineup that same roster could have fielded, with the specific
+  swaps you missed and a season running total.
 
 It only supports **public** ESPN leagues (no ESPN login/cookie flow). If
 your league is private, ESPN's data endpoints return 401s.
@@ -161,12 +176,15 @@ service with the new code at the end.
 3. On the **Setup** tab, enter the league ID and season, click **Sync
    League**.
 4. Pick your team from the dropdown.
-5. Use the **Roster**, **Start / Sit**, **Waivers**, **Trades**, and
-   **Trade Grader** tabs. Re-sync any time (e.g. once a week, or after a
-   waiver run) to refresh projections and pull in the new week's stats —
+5. Start on **Alerts** — it's what needs a decision right now — then use
+   the **Roster**, **Start / Sit**, **Waivers**, **Schedule**, **Trades**,
+   and **Trade Grader** tabs. Re-sync any time (e.g. once a week, or after
+   a waiver run) to refresh projections and pull in the new week's stats —
    each sync adds to a running per-week history rather than throwing away
-   past weeks, which is what the Trade Grader's rest-of-season values are
-   built from.
+   past weeks, which is what the Trade Grader's rest-of-season values and
+   the floor/ceiling labels are built from. Syncing regularly also makes
+   the "what changed since your last sync" digest more useful, since it
+   only ever compares the two most recent syncs.
 
 Each teammate in your league can register their own account on the same
 running instance and pick their own team — nobody sees anyone else's
@@ -222,12 +240,37 @@ selections or synced data.
   the last 4 played weeks to the second half; it needs at least 2 played
   weeks of history to show anything; K and D/ST don't have a meaningful
   stat here and are skipped.
-- Schema changes to `PlayerWeekStat`/`League` (adding the usage/advanced-
-  stats and points-allowed columns) only apply to a freshly created
-  database — if you're upgrading an existing `backend/data/fantasy.db`
-  from before these features, delete it and re-sync your league(s) rather
-  than expecting new columns to appear on their own (there's no migration
-  framework in this app).
+- Schema changes to `PlayerWeekStat`/`League` (the usage/advanced-stats,
+  points-allowed, season-schedule, sync-digest and bench-points columns)
+  only apply to a freshly created database — if you're upgrading an
+  existing `backend/data/fantasy.db` from before these features, delete it
+  and re-sync your league(s) rather than expecting new columns to appear on
+  their own (there's no migration framework in this app). The symptom is a
+  `no such column` error on sync.
+- The **what changed** digest compares only the two most recent syncs, so
+  it's empty until you've synced twice and it won't show anything that
+  happened between syncs you skipped. Thresholds are deliberately coarse
+  (5-point ownership moves, 3-point projection swings) to keep weekly noise
+  out; every injury-status flip and roster move is reported regardless.
+- Bye weeks and the multi-week outlook come from ESPN's public scoreboard
+  API, one request per week of the season, cached on disk for a day
+  (`backend/data/schedule_cache/`). The fantasy playoff weeks are assumed
+  to be 15-17 (ESPN's standard default) rather than read from your league's
+  actual playoff settings, so adjust mentally if your league differs. The
+  bye-week collision warnings only cover single-position starting slots —
+  FLEX-type slots draw from several positions, so they aren't checked.
+- Floor/ceiling labels use thresholds relative to each player's own
+  average (a "boom" is 1.5x their normal game), not position-wide cutoffs,
+  and need at least 3 played weeks. Bye and inactive weeks are excluded
+  rather than counted as zeros, which would otherwise drag every floor to 0.
+- **Bench Points** reads each past week's lineup from ESPN's boxscore
+  endpoint, since synced rosters only ever reflect right now. Weeks already
+  computed are cached on the league, so only genuinely new weeks cost a
+  request — except the current week, which is re-read every time since it's
+  still accruing points. The "best possible lineup" is an exact
+  maximum-value slot assignment (`backend/app/lineup.py`), not a greedy
+  fill, and players who were on IR that week are correctly excluded from it
+  since you couldn't have started them.
 - Depth charts are **inferred, not ESPN's official depth chart** — ESPN
   doesn't expose one as data (only an HTML page), so players within each
   NFL team/position are ranked by nflverse's real snap % where a crosswalk
