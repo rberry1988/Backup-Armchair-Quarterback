@@ -1,0 +1,26 @@
+[Unit]
+Description=Backup Armchair Quarterback backend (FastAPI/uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=__APP_USER__
+Group=__APP_USER__
+WorkingDirectory=__APP_DIR__/backend
+ExecStart=__APP_DIR__/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+Restart=on-failure
+RestartSec=5
+
+# Basic hardening — the service only needs to read/write its own app
+# directory (SQLite db + nflverse cache live under backend/data/) and
+# talk out over the network to ESPN/nflverse. Assumes __APP_DIR__ lives
+# outside /home (install.sh deploys to /opt) — ProtectHome would otherwise
+# make the app's own WorkingDirectory inaccessible.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=__APP_DIR__/backend/data
+
+[Install]
+WantedBy=multi-user.target

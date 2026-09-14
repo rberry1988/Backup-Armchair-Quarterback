@@ -9,7 +9,10 @@ import type {
   WaiverResponse,
 } from "./types";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+// ?? (not ||) so an explicitly empty VITE_API_BASE_URL — the production
+// build's setting, meaning "same origin, call /api/... directly" — is
+// respected instead of falling back to the dev default.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 const TOKEN_KEY = "authToken";
 
 export class ApiError extends Error {

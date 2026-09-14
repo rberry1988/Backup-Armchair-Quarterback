@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, get_current_user, hash_password, verify_password
+from app.config import settings
 from app.db import get_db, init_db
 from app.espn_client import ESPNClientError
 from app.models import League, RosterEntry, Team, User
@@ -26,7 +27,7 @@ app = FastAPI(title="Backup Armchair Quarterback")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.cors_origin_list,
     allow_methods=["*"],
     allow_headers=["*"],
 )

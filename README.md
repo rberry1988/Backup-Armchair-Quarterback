@@ -69,6 +69,78 @@ npm run dev
 
 Open http://localhost:5173.
 
+## Deploying to a Proxmox Ubuntu container
+
+`deploy/install.sh` sets this up as a systemd service behind nginx on any
+Ubuntu (or Debian-family) machine — an LXC container on Proxmox is exactly
+what it's built for. It's been tested end-to-end (real nginx + real systemd
+unit + the actual production frontend build, verified by curling through
+the proxy) in a container matching this setup.
+
+**1. Create the container in Proxmox**
+
+In the Proxmox web UI: *Create CT* → pick an Ubuntu template (22.04 or
+24.04; download one under *local* → *CT Templates* if none is listed yet)
+→ give it a couple GB of disk and at least 512MB RAM → finish the wizard
+and start it. An unprivileged container is fine; no special Proxmox
+features (nesting, KVM passthrough, etc.) are needed since nothing here
+runs in Docker — it's plain systemd services.
+
+**2. Clone and install**
+
+Open a shell in the container (Proxmox's *Console*, or SSH once it has an
+IP) and run:
+
+```bash
+apt-get update && apt-get install -y git
+git clone -b claude/fantasy-football-espn-sync-ccv653 \
+    https://github.com/rberry1988/Claude.git ~/backup-armchair-quarterback
+cd ~/backup-armchair-quarterback
+sudo bash deploy/install.sh
+```
+
+(That branch name is this project's current home — swap it for `main` once/if this gets merged there.)
+
+The script installs Python/Node/nginx, builds the frontend, generates a
+random `JWT_SECRET` into `backend/.env` (only on first run — it won't
+overwrite one that already exists), and sets up:
+
+- A systemd service (`backup-armchair-quarterback`) running the backend
+  under a dedicated `baq` system user, bound to `127.0.0.1:8000` only.
+- An nginx site serving the built frontend on port 80 and reverse-proxying
+  `/api/` to the backend — the frontend and API share one origin, so no
+  CORS configuration is needed in this setup.
+
+When it finishes it prints the container's IP — open `http://<that-ip>/`
+from any browser on your network.
+
+**3. Managing it**
+
+```bash
+sudo systemctl status backup-armchair-quarterback   # is it running?
+sudo systemctl restart backup-armchair-quarterback  # after editing backend/.env
+journalctl -u backup-armchair-quarterback -f        # live logs
+```
+
+**To deploy an update:** `git pull` inside the cloned repo, then re-run
+`sudo bash deploy/install.sh` — it's safe to re-run; it won't touch your
+existing `backend/.env` or the SQLite database, and it restarts the
+service with the new code at the end.
+
+**Notes:**
+
+- If `ufw` is enabled in the container, allow HTTP: `sudo ufw allow
+  80/tcp`. If the Proxmox host firewall is also enabled for this CT,
+  allow port 80 there too.
+- This sets up plain HTTP. That's fine on a private/home network; if
+  you're exposing it to the public internet, put it behind a domain +
+  TLS (e.g. `certbot --nginx` once you have a hostname pointing at it) or
+  a VPN (Tailscale/WireGuard) instead of opening port 80 to the world.
+- Everything persistent lives in `/opt/backup-armchair-quarterback/backend/data`
+  (the SQLite database and the nflverse cache) — back that directory up if
+  you'd be sad to lose your synced leagues, and it's the one thing worth
+  preserving across a container rebuild.
+
 ## Using it
 
 1. Register an account on the login screen (just an email + password —
