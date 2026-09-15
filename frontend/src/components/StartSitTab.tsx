@@ -1,9 +1,21 @@
-import { useEffect, useState } from "react";
-import type { StartSitResponse } from "../types";
+import { useEffect, useMemo, useState } from "react";
+import type { StartSitResponse, StartSitRow } from "../types";
 import { api } from "../api";
 import { MatchupTag } from "./MatchupTag";
 import { InjuryBadge } from "./InjuryBadge";
 import { formatPoints } from "../formatPoints";
+import { starterSlotRank } from "../lineupSlotOrder";
+
+// Backend returns lineup rows in a "most-constrained slot first" solver
+// order, not a display order — same QB/RB/RB/WR/WR/TE/FLEX/D/K ordering
+// as the Roster tab, so a league's starters read the same in both places.
+function orderedLineup(lineup: StartSitRow[]): StartSitRow[] {
+  return [...lineup].sort((a, b) => {
+    const rankDiff = starterSlotRank(a.slot) - starterSlotRank(b.slot);
+    if (rankDiff !== 0) return rankDiff;
+    return (b.current_starter.projected_points ?? -Infinity) - (a.current_starter.projected_points ?? -Infinity);
+  });
+}
 
 export function StartSitTab({ leagueId }: { leagueId: number }) {
   const [data, setData] = useState<StartSitResponse | null>(null);
@@ -15,6 +27,8 @@ export function StartSitTab({ leagueId }: { leagueId: number }) {
       .then(setData)
       .catch((e) => setError(e.message));
   }, [leagueId]);
+
+  const lineup = useMemo(() => (data ? orderedLineup(data.lineup) : []), [data]);
 
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p>Loading...</p>;
@@ -40,7 +54,7 @@ export function StartSitTab({ leagueId }: { leagueId: number }) {
           <tbody>
             {/* Keyed by position too: most leagues start two RBs or three WRs,
                 so slot_id alone repeats across rows. */}
-            {data.lineup.map((row, i) => (
+            {lineup.map((row, i) => (
               <tr key={`${row.slot_id}-${i}`} className={row.swap_recommended ? "swap-row" : ""}>
                 <td>{row.slot}</td>
                 <td>
