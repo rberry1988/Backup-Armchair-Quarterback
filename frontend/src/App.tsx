@@ -41,7 +41,7 @@ const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "start-sit", label: "Start / Sit" },
   { id: "waivers", label: "Waivers" },
   { id: "schedule", label: "Schedule" },
-  { id: "trade-targets", label: "Trade Targets" },
+  { id: "trade-targets", label: "Trades" },
   { id: "expert-rankings", label: "Expert Rankings" },
   { id: "depth-charts", label: "Depth Charts" },
   { id: "handcuffs", label: "Handcuffs" },
