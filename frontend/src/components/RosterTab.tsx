@@ -18,8 +18,37 @@ function fantasyCalcValue(p: RosterPlayer): number {
   return p.fantasycalc?.value ?? -Infinity;
 }
 
+// Starting lineup slots in the order requested: QB, RB, RB, WR, WR, TE,
+// Flex, Def, K — everything not listed (rare hybrid slots like "OP" or
+// "RB/WR") falls in just after its nearest match. Ties within the same
+// slot (e.g. both RB spots) break by projected points, same as bench.
+const STARTER_SLOT_ORDER: Record<string, number> = {
+  QB: 0,
+  RB: 1,
+  "RB/WR": 2,
+  WR: 3,
+  "WR/TE": 4,
+  TE: 5,
+  OP: 6,
+  FLEX: 7,
+  "D/ST": 8,
+  K: 9,
+};
+
+function defaultRosterOrder(roster: RosterPlayer[]): RosterPlayer[] {
+  const byProjDesc = (a: RosterPlayer, b: RosterPlayer) => (b.projected_points ?? -Infinity) - (a.projected_points ?? -Infinity);
+  const starters = roster
+    .filter((p) => p.is_starter)
+    .sort((a, b) => {
+      const rankDiff = (STARTER_SLOT_ORDER[a.slot] ?? 99) - (STARTER_SLOT_ORDER[b.slot] ?? 99);
+      return rankDiff !== 0 ? rankDiff : byProjDesc(a, b);
+    });
+  const bench = roster.filter((p) => !p.is_starter).sort(byProjDesc);
+  return [...starters, ...bench];
+}
+
 function sortRoster(roster: RosterPlayer[], key: SortKey, dir: "asc" | "desc"): RosterPlayer[] {
-  if (key === "default") return roster;
+  if (key === "default") return defaultRosterOrder(roster);
   const sorted = [...roster].sort((a, b) => {
     if (key === "name") return a.name.localeCompare(b.name);
     if (key === "fantasycalc_value") return fantasyCalcValue(a) - fantasyCalcValue(b);
