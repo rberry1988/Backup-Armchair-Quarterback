@@ -18,7 +18,7 @@ export function TradesTab({ leagueId }: { leagueId: number }) {
 
   return (
     <div className="panel">
-      <h2>Trade Analysis</h2>
+      <h2>Trade Targets</h2>
 
       <h3>Your needs</h3>
       {data.needs.length === 0 ? (

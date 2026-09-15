@@ -5,8 +5,7 @@ import { SettingsTab } from "./components/SettingsTab";
 import { RosterTab } from "./components/RosterTab";
 import { StartSitTab } from "./components/StartSitTab";
 import { WaiversTab } from "./components/WaiversTab";
-import { TradesTab } from "./components/TradesTab";
-import { TradeGraderTab } from "./components/TradeGraderTab";
+import { TradeTargetsTab } from "./components/TradeTargetsTab";
 import { ExpertRankingsTab } from "./components/ExpertRankingsTab";
 import { DepthChartsTab } from "./components/DepthChartsTab";
 import { HandcuffsTab } from "./components/HandcuffsTab";
@@ -25,8 +24,7 @@ type Tab =
   | "start-sit"
   | "waivers"
   | "schedule"
-  | "trades"
-  | "trade-grader"
+  | "trade-targets"
   | "expert-rankings"
   | "depth-charts"
   | "handcuffs"
@@ -43,8 +41,7 @@ const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "start-sit", label: "Start / Sit" },
   { id: "waivers", label: "Waivers" },
   { id: "schedule", label: "Schedule" },
-  { id: "trades", label: "Trades" },
-  { id: "trade-grader", label: "Trade Grader" },
+  { id: "trade-targets", label: "Trade Targets" },
   { id: "expert-rankings", label: "Expert Rankings" },
   { id: "depth-charts", label: "Depth Charts" },
   { id: "handcuffs", label: "Handcuffs" },
@@ -188,9 +185,8 @@ function App() {
         {tab === "roster" && league && <RosterTab leagueId={league.id} />}
         {tab === "start-sit" && league && <StartSitTab leagueId={league.id} />}
         {tab === "waivers" && league && <WaiversTab leagueId={league.id} />}
-        {tab === "trades" && league && <TradesTab leagueId={league.id} />}
-        {tab === "trade-grader" && league && (
-          <TradeGraderTab leagueId={league.id} myTeamId={league.my_team_id} />
+        {tab === "trade-targets" && league && (
+          <TradeTargetsTab leagueId={league.id} myTeamId={league.my_team_id} />
         )}
         {tab === "expert-rankings" && league && <ExpertRankingsTab leagueId={league.id} />}
         {tab === "depth-charts" && league && <DepthChartsTab leagueId={league.id} />}
