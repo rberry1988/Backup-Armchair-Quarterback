@@ -12,6 +12,7 @@ export function LoginPage({ onLoggedIn }: Props) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showForgotHint, setShowForgotHint] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -73,6 +74,18 @@ export function LoginPage({ onLoggedIn }: Props) {
         >
           {mode === "login" ? "Need an account? Register" : "Already have an account? Sign in"}
         </button>
+
+        {mode === "login" && (
+          <button type="button" className="link-button" onClick={() => setShowForgotHint((v) => !v)}>
+            Forgot password?
+          </button>
+        )}
+        {showForgotHint && (
+          <p className="hint" style={{ textAlign: "center" }}>
+            There's no automated reset on this app &mdash; ask whoever manages this instance to reset it for you
+            from their Admin tab.
+          </p>
+        )}
       </form>
     </div>
   );

@@ -193,7 +193,10 @@ service with the new code at the end.
 Each teammate in your league can register their own account on the same
 running instance and pick their own team — nobody sees anyone else's
 selections or synced data. Anyone can change their own password from the
-**Account** tab at any time (you'll need your current one).
+**Account** tab at any time (you'll need your current one). Forgot it
+instead? There's no self-service email reset — the login page's "Forgot
+password?" link just says to ask whoever manages your instance, which is
+what the **Admin** tab's Reset Password action below is for.
 
 ## Admin: adding and removing accounts
 
@@ -202,9 +205,16 @@ get an **Admin** tab, visible only to those accounts, for managing who else
 can use this instance — an alternative to everyone self-registering.
 
 - **Add a person**: enter an email and a password (8+ characters) and share
-  it with them directly — there's no invite email or password-reset flow,
-  so pick something you're comfortable telling them. They can change it
-  themselves afterward from their own **Account** tab.
+  it with them directly — there's no invite email, so pick something you're
+  comfortable telling them. They can change it themselves afterward from
+  their own **Account** tab.
+- **Reset someone's password**: for when they've forgotten it and can't use
+  the Account tab themselves (no current password to enter there). Sets a
+  new password directly, no email involved — share the new one with them
+  the same way you'd share it when adding an account. This is the only
+  "forgot password" flow this app has; there's no SMTP/email setup to
+  configure, so keep this feature in mind before handing out accounts to
+  people you won't be able to reach when they get locked out.
 - **Remove a person**: deletes their account and everything scoped to it
   (synced leagues, team selection) — it doesn't touch anyone else's data.
   You can't remove your own account this way.

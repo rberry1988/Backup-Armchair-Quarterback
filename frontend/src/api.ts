@@ -133,4 +133,9 @@ export const api = {
     }),
   adminDeleteUser: (userId: number) =>
     request<void>(`/api/admin/users/${userId}`, { method: "DELETE" }),
+  adminResetPassword: (userId: number, newPassword: string) =>
+    request<void>(`/api/admin/users/${userId}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ new_password: newPassword }),
+    }),
 };

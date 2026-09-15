@@ -35,6 +35,7 @@ from app.schemas import (
     ChangePasswordRequest,
     LoginRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     SetMyTeamRequest,
     SyncRequest,
     TokenResponse,
@@ -161,6 +162,23 @@ def admin_delete_user(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     db.delete(user)  # cascades to their leagues (see User.leagues relationship)
+    db.commit()
+
+
+@app.post("/api/admin/users/{user_id}/reset-password", status_code=204)
+def admin_reset_password(
+    user_id: int,
+    payload: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """The "forgot password" flow for this app: no email/SMTP setup needed,
+    an admin just sets a new one directly. See README for why."""
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.hashed_password = hash_password(payload.new_password)
+    db.commit()
     db.commit()
 
 

@@ -3,6 +3,12 @@ import datetime
 from pydantic import BaseModel, EmailStr, field_validator
 
 
+def _min_length_password(v: str) -> str:
+    if len(v) < 8:
+        raise ValueError("Password must be at least 8 characters")
+    return v
+
+
 class SyncRequest(BaseModel):
     league_id: int
     season: int
@@ -23,12 +29,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
 
-    @field_validator("password")
-    @classmethod
-    def password_min_length(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
-        return v
+    _validate_password = field_validator("password")(_min_length_password)
 
 
 class LoginRequest(BaseModel):
@@ -40,12 +41,15 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
-    @field_validator("new_password")
-    @classmethod
-    def password_min_length(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
-        return v
+    _validate_password = field_validator("new_password")(_min_length_password)
+
+
+class ResetPasswordRequest(BaseModel):
+    """Admin-only: set someone's password without knowing their current one."""
+
+    new_password: str
+
+    _validate_password = field_validator("new_password")(_min_length_password)
 
 
 class TokenResponse(BaseModel):

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { AdminUser } from "../types";
 import { ApiError, api } from "../api";
 
@@ -10,6 +10,12 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+
+  const [resetTargetId, setResetTargetId] = useState<number | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const [justResetId, setJustResetId] = useState<number | null>(null);
 
   function load() {
     api
@@ -47,6 +53,28 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
       setError(err instanceof ApiError ? err.message : "Failed to remove person.");
     } finally {
       setPendingDeleteId(null);
+    }
+  }
+
+  function openReset(userId: number) {
+    setResetTargetId(userId);
+    setResetPassword("");
+    setResetError(null);
+    setJustResetId(null);
+  }
+
+  async function handleResetPassword(e: React.FormEvent, userId: number) {
+    e.preventDefault();
+    setResetError(null);
+    setResetting(true);
+    try {
+      await api.adminResetPassword(userId, resetPassword);
+      setResetTargetId(null);
+      setJustResetId(userId);
+    } catch (err) {
+      setResetError(err instanceof ApiError ? err.message : "Failed to reset password.");
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -105,20 +133,57 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.email}</td>
-                  <td className="hint">{new Date(u.created_at).toLocaleDateString()}</td>
-                  <td className="num">{u.league_count}</td>
-                  <td>
-                    {u.id === currentUserId ? (
-                      <span className="hint">(you)</span>
-                    ) : (
-                      <button onClick={() => handleDelete(u)} disabled={pendingDeleteId === u.id}>
-                        {pendingDeleteId === u.id ? "Removing..." : "Remove"}
-                      </button>
-                    )}
-                  </td>
-                </tr>
+                <Fragment key={u.id}>
+                  <tr>
+                    <td>{u.email}</td>
+                    <td className="hint">{new Date(u.created_at).toLocaleDateString()}</td>
+                    <td className="num">{u.league_count}</td>
+                    <td style={{ display: "flex", gap: "0.4rem" }}>
+                      <button onClick={() => openReset(u.id)}>Reset Password</button>
+                      {u.id !== currentUserId && (
+                        <button onClick={() => handleDelete(u)} disabled={pendingDeleteId === u.id}>
+                          {pendingDeleteId === u.id ? "Removing..." : "Remove"}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                  {resetTargetId === u.id && (
+                    <tr className="bench-row">
+                      <td></td>
+                      <td colSpan={3}>
+                        <form
+                          onSubmit={(e) => handleResetPassword(e, u.id)}
+                          style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
+                        >
+                          <input
+                            type="text"
+                            required
+                            minLength={8}
+                            placeholder="new password, at least 8 characters"
+                            value={resetPassword}
+                            onChange={(e) => setResetPassword(e.target.value)}
+                            autoFocus
+                          />
+                          <button type="submit" disabled={resetting}>
+                            {resetting ? "Setting..." : "Set"}
+                          </button>
+                          <button type="button" onClick={() => setResetTargetId(null)}>
+                            Cancel
+                          </button>
+                        </form>
+                        {resetError && <p className="error">{resetError}</p>}
+                      </td>
+                    </tr>
+                  )}
+                  {justResetId === u.id && (
+                    <tr>
+                      <td></td>
+                      <td colSpan={3} className="success">
+                        Password reset. Share the new one with {u.email} directly.
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>
