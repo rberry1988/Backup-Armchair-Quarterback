@@ -1,37 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import type { PlayerConsistency, RosterPlayer, RosterResponse } from "../types";
+import type { RosterPlayer, RosterResponse } from "../types";
 import { api } from "../api";
 import { TrendTag } from "./TrendTag";
 import { PositionTag } from "./PositionTag";
 import { InjuryBadge } from "./InjuryBadge";
 import { formatPoints } from "../formatPoints";
 
-const CONSISTENCY_CLASS: Record<string, string> = {
-  steady: "matchup-favorable",
-  streaky: "matchup-average",
-  "boom/bust": "matchup-tough",
-  unrated: "matchup-average",
-};
-
-function ConsistencyTag({ consistency }: { consistency: PlayerConsistency | null }) {
-  if (!consistency) return <span className="hint">-</span>;
-  return (
-    <span
-      className={`matchup-tag ${CONSISTENCY_CLASS[consistency.label] ?? "matchup-average"}`}
-      title={`${consistency.weeks_counted} weeks: avg ${consistency.average}, floor ${consistency.floor}, ceiling ${consistency.ceiling} (boom ${consistency.boom_rate}% / bust ${consistency.bust_rate}%)`}
-    >
-      {consistency.label} {consistency.floor}&ndash;{consistency.ceiling}
-    </span>
-  );
-}
-
-type SortKey = "default" | "name" | "projected_points" | "actual_points" | "percent_owned";
+type SortKey = "default" | "name" | "projected_points";
 
 const SORT_COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
   { key: "name", label: "Player" },
   { key: "projected_points", label: "Proj.", numeric: true },
-  { key: "actual_points", label: "Actual", numeric: true },
-  { key: "percent_owned", label: "% Owned", numeric: true },
 ];
 
 function sortRoster(roster: RosterPlayer[], key: SortKey, dir: "asc" | "desc"): RosterPlayer[] {
@@ -95,7 +74,6 @@ export function RosterTab({ leagueId }: { leagueId: number }) {
               ))}
               <th>Pos</th>
               <th>Status</th>
-              <th>Floor &ndash; Ceiling</th>
               <th>Usage Trend</th>
             </tr>
           </thead>
@@ -105,16 +83,11 @@ export function RosterTab({ leagueId }: { leagueId: number }) {
                 <td>{p.slot}</td>
                 <td>{p.name}</td>
                 <td className="num">{formatPoints(p.projected_points)}</td>
-                <td className="num">{p.actual_points ?? "-"}</td>
-                <td className="num">{p.percent_owned.toFixed(1)}%</td>
                 <td>
                   <PositionTag position={p.position} />
                 </td>
                 <td>
                   <InjuryBadge status={p.injury_status} />
-                </td>
-                <td>
-                  <ConsistencyTag consistency={p.consistency} />
                 </td>
                 <td>
                   <TrendTag trend={p.trend} />
