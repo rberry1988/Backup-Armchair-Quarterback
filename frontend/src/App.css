@@ -49,6 +49,28 @@ header h1 {
   cursor: not-allowed;
 }
 
+@media (max-width: 640px) {
+  /* A dozen-plus tabs wrapping to 4-5 rows pushed all page content below
+     the fold before it was even visible. This has to live here (not
+     index.css's mobile block) — index.css loads first, so App.css's own
+     unconditional `.tabs { flex-wrap: wrap }` above wins at any width
+     regardless of what a media query earlier in the cascade says. */
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tabs button {
+    flex: 0 0 auto;
+  }
+}
+
 .panel {
   background: #171a21;
   border: 1px solid #2a2d34;
