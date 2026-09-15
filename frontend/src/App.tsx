@@ -7,11 +7,9 @@ import { StartSitTab } from "./components/StartSitTab";
 import { WaiversTab } from "./components/WaiversTab";
 import { TradeTargetsTab } from "./components/TradeTargetsTab";
 import { ExpertRankingsTab } from "./components/ExpertRankingsTab";
-import { DepthChartsTab } from "./components/DepthChartsTab";
-import { HandcuffsTab } from "./components/HandcuffsTab";
 import { AlertsTab } from "./components/AlertsTab";
 import { ScheduleTab } from "./components/ScheduleTab";
-import { BenchPointsTab } from "./components/BenchPointsTab";
+import { ExtraTab } from "./components/ExtraTab";
 import { AdminTab } from "./components/AdminTab";
 import { api, clearToken, getToken } from "./api";
 import { formatRelativeTime } from "./relativeTime";
@@ -26,9 +24,7 @@ type Tab =
   | "schedule"
   | "trade-targets"
   | "expert-rankings"
-  | "depth-charts"
-  | "handcuffs"
-  | "bench-points"
+  | "extra"
   | "admin";
 
 // Tabs that don't need a synced league selected to be usable.
@@ -43,9 +39,7 @@ const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "schedule", label: "Schedule" },
   { id: "trade-targets", label: "Trades" },
   { id: "expert-rankings", label: "Expert Rankings" },
-  { id: "depth-charts", label: "Depth Charts" },
-  { id: "handcuffs", label: "Handcuffs" },
-  { id: "bench-points", label: "Bench Points" },
+  { id: "extra", label: "Extra" },
 ];
 
 function App() {
@@ -189,11 +183,9 @@ function App() {
           <TradeTargetsTab leagueId={league.id} myTeamId={league.my_team_id} />
         )}
         {tab === "expert-rankings" && league && <ExpertRankingsTab leagueId={league.id} />}
-        {tab === "depth-charts" && league && <DepthChartsTab leagueId={league.id} />}
-        {tab === "handcuffs" && league && <HandcuffsTab leagueId={league.id} />}
         {tab === "alerts" && league && <AlertsTab leagueId={league.id} />}
         {tab === "schedule" && league && <ScheduleTab leagueId={league.id} />}
-        {tab === "bench-points" && league && <BenchPointsTab leagueId={league.id} />}
+        {tab === "extra" && league && <ExtraTab leagueId={league.id} />}
         {tab === "admin" && user.is_admin && <AdminTab currentUserId={user.id} />}
       </main>
     </div>
