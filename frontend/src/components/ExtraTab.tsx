@@ -1,6 +1,7 @@
 import { DepthChartsTab } from "./DepthChartsTab";
 import { HandcuffsTab } from "./HandcuffsTab";
 import { BenchPointsTab } from "./BenchPointsTab";
+import { ExpertRankingsTab } from "./ExpertRankingsTab";
 
 export function ExtraTab({ leagueId }: { leagueId: number }) {
   return (
@@ -11,6 +12,9 @@ export function ExtraTab({ leagueId }: { leagueId: number }) {
       </div>
       <div style={{ marginTop: "1.25rem" }}>
         <DepthChartsTab leagueId={leagueId} />
+      </div>
+      <div style={{ marginTop: "1.25rem" }}>
+        <ExpertRankingsTab leagueId={leagueId} />
       </div>
     </>
   );

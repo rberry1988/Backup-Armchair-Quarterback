@@ -6,7 +6,6 @@ import { RosterTab } from "./components/RosterTab";
 import { StartSitTab } from "./components/StartSitTab";
 import { WaiversTab } from "./components/WaiversTab";
 import { TradeTargetsTab } from "./components/TradeTargetsTab";
-import { ExpertRankingsTab } from "./components/ExpertRankingsTab";
 import { AlertsTab } from "./components/AlertsTab";
 import { ScheduleTab } from "./components/ScheduleTab";
 import { ExtraTab } from "./components/ExtraTab";
@@ -23,7 +22,6 @@ type Tab =
   | "waivers"
   | "schedule"
   | "trade-targets"
-  | "expert-rankings"
   | "extra"
   | "admin";
 
@@ -38,7 +36,6 @@ const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "waivers", label: "Waivers" },
   { id: "schedule", label: "Schedule" },
   { id: "trade-targets", label: "Trades" },
-  { id: "expert-rankings", label: "Expert Rankings" },
   { id: "extra", label: "Extra" },
 ];
 
@@ -182,7 +179,6 @@ function App() {
         {tab === "trade-targets" && league && (
           <TradeTargetsTab leagueId={league.id} myTeamId={league.my_team_id} />
         )}
-        {tab === "expert-rankings" && league && <ExpertRankingsTab leagueId={league.id} />}
         {tab === "alerts" && league && <AlertsTab leagueId={league.id} />}
         {tab === "schedule" && league && <ScheduleTab leagueId={league.id} />}
         {tab === "extra" && league && <ExtraTab leagueId={league.id} />}
