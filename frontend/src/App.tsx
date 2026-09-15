@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 import { LoginPage } from "./components/LoginPage";
-import { SetupPanel } from "./components/SetupPanel";
+import { SettingsTab } from "./components/SettingsTab";
 import { RosterTab } from "./components/RosterTab";
 import { StartSitTab } from "./components/StartSitTab";
 import { WaiversTab } from "./components/WaiversTab";
@@ -14,14 +14,12 @@ import { AlertsTab } from "./components/AlertsTab";
 import { ScheduleTab } from "./components/ScheduleTab";
 import { BenchPointsTab } from "./components/BenchPointsTab";
 import { AdminTab } from "./components/AdminTab";
-import { AccountTab } from "./components/AccountTab";
 import { api, clearToken, getToken } from "./api";
 import { formatRelativeTime } from "./relativeTime";
 import type { LeagueSummary, User } from "./types";
 
 type Tab =
-  | "setup"
-  | "account"
+  | "settings"
   | "alerts"
   | "roster"
   | "start-sit"
@@ -36,11 +34,10 @@ type Tab =
   | "admin";
 
 // Tabs that don't need a synced league selected to be usable.
-const NO_LEAGUE_REQUIRED: Tab[] = ["setup", "account", "admin"];
+const NO_LEAGUE_REQUIRED: Tab[] = ["settings", "admin"];
 
 const BASE_TABS: { id: Tab; label: string }[] = [
-  { id: "setup", label: "Setup" },
-  { id: "account", label: "Account" },
+  { id: "settings", label: "Settings" },
   { id: "alerts", label: "Alerts" },
   { id: "roster", label: "Roster" },
   { id: "start-sit", label: "Start / Sit" },
@@ -59,7 +56,7 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [league, setLeague] = useState<LeagueSummary | null>(null);
   const [leagues, setLeagues] = useState<LeagueSummary[]>([]);
-  const [tab, setTab] = useState<Tab>("setup");
+  const [tab, setTab] = useState<Tab>("settings");
 
   useEffect(() => {
     if (!getToken()) {
@@ -78,7 +75,7 @@ function App() {
       if (fetchedLeagues.length > 0) {
         const mostRecent = fetchedLeagues[0];
         setLeague(mostRecent);
-        setTab(mostRecent.my_team_id != null ? "alerts" : "setup");
+        setTab(mostRecent.my_team_id != null ? "alerts" : "settings");
       }
     } catch {
       clearToken();
@@ -108,7 +105,7 @@ function App() {
     if (league?.id === leagueId) {
       const next = remaining[0] ?? null;
       setLeague(next);
-      setTab(next && next.my_team_id != null ? "alerts" : "setup");
+      setTab(next && next.my_team_id != null ? "alerts" : "settings");
     }
   }
 
@@ -117,7 +114,7 @@ function App() {
     setUser(null);
     setLeague(null);
     setLeagues([]);
-    setTab("setup");
+    setTab("settings");
   }
 
   if (!authChecked) {
@@ -178,8 +175,13 @@ function App() {
       </nav>
 
       <main>
-        {tab === "setup" && (
-          <SetupPanel league={league} onLeagueChange={handleLeagueChange} onLeagueRemoved={handleLeagueRemoved} />
+        {tab === "settings" && (
+          <SettingsTab
+            email={user.email}
+            league={league}
+            onLeagueChange={handleLeagueChange}
+            onLeagueRemoved={handleLeagueRemoved}
+          />
         )}
         {tab === "roster" && league && <RosterTab leagueId={league.id} />}
         {tab === "start-sit" && league && <StartSitTab leagueId={league.id} />}
@@ -195,7 +197,6 @@ function App() {
         {tab === "schedule" && league && <ScheduleTab leagueId={league.id} />}
         {tab === "bench-points" && league && <BenchPointsTab leagueId={league.id} />}
         {tab === "admin" && user.is_admin && <AdminTab currentUserId={user.id} />}
-        {tab === "account" && <AccountTab email={user.email} />}
       </main>
     </div>
   );
