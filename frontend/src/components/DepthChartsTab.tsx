@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { DepthChartEntry, DepthChartsResponse } from "../types";
 import { api } from "../api";
+import { InjuryBadge } from "./InjuryBadge";
 
 const POSITION_ORDER = ["QB", "RB", "WR", "TE", "K"];
 
@@ -66,30 +67,45 @@ function DepthChartGroup({ title, players }: { title: string; players: DepthChar
   return (
     <div className="waiver-group">
       <h3>{title}</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Depth</th>
-            <th>Player</th>
-            <th>Snap %</th>
-            <th>Proj</th>
-            <th>Status</th>
-            <th>Owner</th>
-          </tr>
-        </thead>
-        <tbody>
-          {players.map((p) => (
-            <tr key={p.espn_player_id}>
-              <td>{p.depth_rank}</td>
-              <td>{p.name}</td>
-              <td>{p.snap_pct != null ? `${p.snap_pct}%` : "-"}</td>
-              <td>{p.projected_points ?? "-"}</td>
-              <td>{p.injury_status !== "ACTIVE" ? <span className="badge">{p.injury_status}</span> : "-"}</td>
-              <td className="hint">{p.is_free_agent ? "Free agent" : p.owner_team_name ?? "-"}</td>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th className="num">Depth</th>
+              <th>Player</th>
+              <th className="num">Snap %</th>
+              <th className="num">Proj</th>
+              <th>Status</th>
+              <th>Owner</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {players.map((p) => (
+              <tr key={p.espn_player_id}>
+                <td className="num">{p.depth_rank}</td>
+                <td>{p.name}</td>
+                <td className="num">
+                  {p.snap_pct != null ? (
+                    `${p.snap_pct}%`
+                  ) : (
+                    <span
+                      className="hint"
+                      title="No real snap-share data for this player yet — ranked by ESPN's percent-started/projected points instead, a rougher estimate."
+                    >
+                      est.
+                    </span>
+                  )}
+                </td>
+                <td className="num">{p.projected_points ?? "-"}</td>
+                <td>
+                  <InjuryBadge status={p.injury_status} />
+                </td>
+                <td className="hint">{p.is_free_agent ? "Free agent" : p.owner_team_name ?? "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { AlertsTab } from "./components/AlertsTab";
 import { ScheduleTab } from "./components/ScheduleTab";
 import { BenchPointsTab } from "./components/BenchPointsTab";
 import { api, clearToken, getToken } from "./api";
+import { formatRelativeTime } from "./relativeTime";
 import type { LeagueSummary, User } from "./types";
 
 type Tab =
@@ -99,6 +100,11 @@ function App() {
       <header>
         <h1>Backup Armchair Quarterback</h1>
         {league && <span className="league-badge">{league.name}</span>}
+        {league?.synced_at && (
+          <span className="hint sync-freshness" title={new Date(league.synced_at).toLocaleString()}>
+            Synced {formatRelativeTime(league.synced_at)}
+          </span>
+        )}
         <div className="header-right">
           <span>{user.email}</span>
           <button className="logout-button" onClick={handleLogout}>

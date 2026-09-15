@@ -48,46 +48,48 @@ export function BenchPointsTab({ leagueId }: { leagueId: number }) {
           : "."}
       </p>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Week</th>
-            <th>Started</th>
-            <th>Best possible</th>
-            <th>Left on bench</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.weeks.map((week) => (
-            <Fragment key={week.week}>
-              <tr
-                onClick={() => setExpanded(expanded === week.week ? null : week.week)}
-                style={{ cursor: week.missed.length > 0 ? "pointer" : "default" }}
-                className={week.left_on_bench > 0 ? "swap-row" : ""}
-              >
-                <td>
-                  {week.missed.length > 0 ? (expanded === week.week ? "▾ " : "▸ ") : ""}
-                  Week {week.week}
-                </td>
-                <td>{week.actual_points}</td>
-                <td>{week.optimal_points}</td>
-                <td>{week.left_on_bench > 0 ? `-${week.left_on_bench}` : "optimal"}</td>
-              </tr>
-              {expanded === week.week &&
-                week.missed.map((miss, i) => (
-                  <tr key={`${week.week}-miss-${i}`} className="bench-row">
-                    <td></td>
-                    <td colSpan={3} className="hint">
-                      {miss.slot}: started {miss.started.name} ({miss.started.points}) instead of{" "}
-                      {miss.should_have_started.name} ({miss.should_have_started.points}) &mdash; {miss.points_missed}{" "}
-                      points
-                    </td>
-                  </tr>
-                ))}
-            </Fragment>
-          ))}
-        </tbody>
-      </table>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Week</th>
+              <th className="num">Started</th>
+              <th className="num">Best possible</th>
+              <th className="num">Left on bench</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.weeks.map((week) => (
+              <Fragment key={week.week}>
+                <tr
+                  onClick={() => setExpanded(expanded === week.week ? null : week.week)}
+                  style={{ cursor: week.missed.length > 0 ? "pointer" : "default" }}
+                  className={week.left_on_bench > 0 ? "swap-row" : ""}
+                >
+                  <td>
+                    {week.missed.length > 0 ? (expanded === week.week ? "▾ " : "▸ ") : ""}
+                    Week {week.week}
+                  </td>
+                  <td className="num">{week.actual_points}</td>
+                  <td className="num">{week.optimal_points}</td>
+                  <td className="num">{week.left_on_bench > 0 ? `-${week.left_on_bench}` : "optimal"}</td>
+                </tr>
+                {expanded === week.week &&
+                  week.missed.map((miss, i) => (
+                    <tr key={`${week.week}-miss-${i}`} className="bench-row">
+                      <td></td>
+                      <td colSpan={3} className="hint">
+                        {miss.slot}: started {miss.started.name} ({miss.started.points}) instead of{" "}
+                        {miss.should_have_started.name} ({miss.should_have_started.points}) &mdash; {miss.points_missed}{" "}
+                        points
+                      </td>
+                    </tr>
+                  ))}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

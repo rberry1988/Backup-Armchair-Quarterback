@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ExpertRankingGroup, ExpertRankingPlayer, ExpertRankingsResponse } from "../types";
 import { api } from "../api";
+import { PositionTag } from "./PositionTag";
 
 const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"];
 
@@ -63,36 +64,40 @@ function ExpertGroupTable({ title, players }: { title: string; players: ExpertRa
   return (
     <div className="waiver-group">
       <h3>{title}</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Player</th>
-            <th>Pos</th>
-            <th>Team</th>
-            <th>Pos Rank</th>
-            <th>Expert Range</th>
-          </tr>
-        </thead>
-        <tbody>
-          {players.map((p) => (
-            <tr key={p.fantasypros_id}>
-              <td>{p.ecr_rank}</td>
-              <td>
-                <a href={p.page_url} target="_blank" rel="noreferrer">
-                  {p.name}
-                </a>
-              </td>
-              <td>{p.position}</td>
-              <td>{p.team}</td>
-              <td>{p.pos_rank}</td>
-              <td className="hint">
-                {p.rank_min ?? "-"}&ndash;{p.rank_max ?? "-"}
-              </td>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th className="num">Rank</th>
+              <th>Player</th>
+              <th>Pos</th>
+              <th>Team</th>
+              <th>Pos Rank</th>
+              <th>Expert Range</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {players.map((p) => (
+              <tr key={p.fantasypros_id}>
+                <td className="num">{p.ecr_rank}</td>
+                <td>
+                  <a href={p.page_url} target="_blank" rel="noreferrer">
+                    {p.name}
+                  </a>
+                </td>
+                <td>
+                  <PositionTag position={p.position} />
+                </td>
+                <td>{p.team}</td>
+                <td>{p.pos_rank}</td>
+                <td className="hint">
+                  {p.rank_min ?? "-"}&ndash;{p.rank_max ?? "-"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

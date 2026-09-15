@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { AlertsResponse, ChangesResponse, RosterAlert, SyncChange } from "../types";
 import { api } from "../api";
+import { PositionTag } from "./PositionTag";
+import { InjuryBadge } from "./InjuryBadge";
 
 const KIND_LABEL: Record<SyncChange["kind"], string> = {
   injury: "Injury",
@@ -70,30 +72,34 @@ export function AlertsTab({ leagueId }: { leagueId: number }) {
             <p className="hint">
               Comparing {formatWhen(changes.since)} to {formatWhen(changes.at)}.
             </p>
-            <table>
-              <thead>
-                <tr>
-                  <th>What</th>
-                  <th>Player</th>
-                  <th>Pos</th>
-                  <th>Change</th>
-                  <th>Team</th>
-                </tr>
-              </thead>
-              <tbody>
-                {changes.items.map((item, i) => (
-                  <tr key={`${item.espn_player_id}-${item.kind}-${i}`}>
-                    <td>
-                      <span className={`grade-badge ${KIND_CLASS[item.kind]}`}>{KIND_LABEL[item.kind]}</span>
-                    </td>
-                    <td>{item.name}</td>
-                    <td>{item.position}</td>
-                    <td>{item.detail}</td>
-                    <td className="hint">{item.owner ?? "Free agent"}</td>
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>What</th>
+                    <th>Player</th>
+                    <th>Pos</th>
+                    <th>Change</th>
+                    <th>Team</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {changes.items.map((item, i) => (
+                    <tr key={`${item.espn_player_id}-${item.kind}-${i}`}>
+                      <td>
+                        <span className={`grade-badge ${KIND_CLASS[item.kind]}`}>{KIND_LABEL[item.kind]}</span>
+                      </td>
+                      <td>{item.name}</td>
+                      <td>
+                        <PositionTag position={item.position} />
+                      </td>
+                      <td>{item.detail}</td>
+                      <td className="hint">{item.owner ?? "Free agent"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
       </div>
@@ -106,8 +112,8 @@ function AlertCard({ alert }: { alert: RosterAlert }) {
   return (
     <div className="partner-card">
       <h4>
-        {player.name} <span className="pos-tag">{player.position} · {player.pro_team}</span>{" "}
-        <span className="badge">{alert.reason === "on bye" ? "BYE" : alert.reason}</span>
+        {player.name} <PositionTag position={player.position} /> <span className="pos-tag">{player.pro_team}</span>{" "}
+        {alert.reason === "on bye" ? <span className="badge">BYE</span> : <InjuryBadge status={alert.reason} />}
         {player.is_starter && <span className="ecr-badge"> starting at {player.slot}</span>}
       </h4>
 

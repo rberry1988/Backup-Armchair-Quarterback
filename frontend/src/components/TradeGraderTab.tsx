@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { TeamWithRoster, TradeGradePlayer, TradeGradeResponse, TradeGradeSide } from "../types";
 import { ApiError, api } from "../api";
+import { PositionTag } from "./PositionTag";
 
 export function TradeGraderTab({ leagueId, myTeamId }: { leagueId: number; myTeamId: number | null }) {
   const [teams, setTeams] = useState<TeamWithRoster[] | null>(null);
@@ -151,7 +152,7 @@ function TeamSide({
                 checked={selected.has(p.espn_player_id)}
                 onChange={() => onToggle(p.espn_player_id)}
               />
-              {p.name} <span className="pos-tag">{p.position}</span>{" "}
+              {p.name} <PositionTag position={p.position} />{" "}
               <span className="hint">{p.projected_points ?? "-"} pts</span>
             </label>
           </li>

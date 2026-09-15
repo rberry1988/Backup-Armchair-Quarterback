@@ -39,31 +39,33 @@ export function HandcuffsTab({ leagueId }: { leagueId: number }) {
       {data.handcuffs.length === 0 ? (
         <p>No RB handcuffs found. This can happen if your running backs are their team's only synced RB.</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Your RB</th>
-              <th>Team</th>
-              <th>Handcuff</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.handcuffs.map((h) => (
-              <tr key={h.rb.espn_player_id}>
-                <td>{h.rb.name}</td>
-                <td>{h.rb.pro_team}</td>
-                <td>{h.handcuff.name}</td>
-                <td>
-                  <span className={`grade-badge ${STATUS_CLASS[h.status]}`}>{STATUS_LABEL[h.status]}</span>
-                  {h.status === "rostered" && h.handcuff.owner_team_name && (
-                    <span className="hint"> ({h.handcuff.owner_team_name})</span>
-                  )}
-                </td>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Your RB</th>
+                <th>Team</th>
+                <th>Handcuff</th>
+                <th>Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.handcuffs.map((h) => (
+                <tr key={h.rb.espn_player_id}>
+                  <td>{h.rb.name}</td>
+                  <td>{h.rb.pro_team}</td>
+                  <td>{h.handcuff.name}</td>
+                  <td>
+                    <span className={`grade-badge ${STATUS_CLASS[h.status]}`}>{STATUS_LABEL[h.status]}</span>
+                    {h.status === "rostered" && h.handcuff.owner_team_name && (
+                      <span className="hint"> ({h.handcuff.owner_team_name})</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

@@ -13,6 +13,15 @@ body {
   box-sizing: border-box;
 }
 
+/* Every table on a page this data-dense can end up wider than its column
+   count suggests once real names/badges are in the cells — scope the
+   scrollbar to the table itself so a wide one never forces the whole page
+   to scroll sideways. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -25,6 +34,7 @@ td {
   padding: 0.5rem 0.6rem;
   border-bottom: 1px solid #2a2d34;
   font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
 }
 
 th {
@@ -33,4 +43,76 @@ th {
   text-transform: uppercase;
   font-size: 0.75rem;
   letter-spacing: 0.03em;
+}
+
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.sortable-th:hover {
+  color: #e8eaed;
+}
+
+.sortable-th.active {
+  color: #8ab4f8;
+}
+
+/* Right-align numeric columns so values compare at a glance down a
+   column, rather than reading as left-set text. */
+td.num,
+th.num {
+  text-align: right;
+}
+
+tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Zebra striping, applied before the component-specific row classes in
+   App.css so a swap/bench/injury row's own background always wins — CSS
+   resolves equal-specificity rules by source order, and App.css loads
+   after this file. */
+tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+@media (max-width: 640px) {
+  .app {
+    padding: 1rem 0.75rem 2rem;
+  }
+
+  header {
+    flex-wrap: wrap;
+  }
+
+  header h1 {
+    font-size: 1.15rem;
+  }
+
+  .header-right {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .tabs button {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .panel {
+    padding: 1rem;
+  }
+
+  .scoring-list {
+    columns: 1;
+  }
+
+  th,
+  td {
+    padding: 0.4rem 0.45rem;
+    font-size: 0.82rem;
+  }
 }

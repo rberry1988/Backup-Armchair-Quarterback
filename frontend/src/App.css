@@ -139,6 +139,67 @@ button:disabled {
   font-size: 0.7rem;
 }
 
+/* Injury severity — Questionable often clears by kickoff, Doubtful rarely
+   does, Out/IR/Suspension definitely won't. */
+.injury-questionable {
+  background: #5c4a1e;
+  color: #fdd663;
+}
+
+.injury-doubtful {
+  background: #5c3a1e;
+  color: #f7ad5c;
+}
+
+.injury-out {
+  background: #5c2b29;
+  color: #f28b82;
+}
+
+.pos-chip {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pos-qb {
+  background: #2a3d5c;
+  color: #8ab4f8;
+}
+
+.pos-rb {
+  background: #1e4620;
+  color: #81c995;
+}
+
+.pos-wr {
+  background: #5c3a1e;
+  color: #f7ad5c;
+}
+
+.pos-te {
+  background: #3d2a5c;
+  color: #c58af8;
+}
+
+.pos-k {
+  background: #2a2d34;
+  color: #c4c7c5;
+}
+
+.pos-dst {
+  background: #1e4a4a;
+  color: #6fd6d6;
+}
+
+.pos-other {
+  background: #2a2d34;
+  color: #9aa0a6;
+}
+
 .waiver-group {
   margin-bottom: 1.5rem;
 }

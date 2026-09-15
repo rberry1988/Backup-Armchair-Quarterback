@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { OutlookSummary, OutlookWeek, ScheduleOutlookResponse } from "../types";
 import { api } from "../api";
+import { PositionTag } from "./PositionTag";
 
 const SUMMARY_CLASS: Record<string, string> = {
   "favorable stretch": "matchup-favorable",
@@ -77,40 +78,44 @@ export function ScheduleTab({ leagueId }: { leagueId: number }) {
           Toughest schedules first, rated the same way as this week's matchup tags. Playoff columns are weeks{" "}
           {(data.playoff_weeks ?? []).join(", ")} — the stretch that decides your season.
         </p>
-        <table>
-          <thead>
-            <tr>
-              <th>Player</th>
-              <th>Pos</th>
-              <th>Bye</th>
-              {upcomingWeeks.map((week) => (
-                <th key={week}>Wk {week}</th>
-              ))}
-              <th>Next {data.weeks_ahead}</th>
-              <th>Playoffs</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.outlook.map((player) => (
-              <tr key={player.espn_player_id}>
-                <td>{player.name}</td>
-                <td>{player.position}</td>
-                <td className="hint">{player.bye_week ?? "-"}</td>
-                {player.upcoming.map((week) => (
-                  <td key={week.week}>
-                    <WeekCell week={week} />
-                  </td>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Pos</th>
+                <th className="num">Bye</th>
+                {upcomingWeeks.map((week) => (
+                  <th key={week}>Wk {week}</th>
                 ))}
-                <td>
-                  <SummaryTag summary={player.upcoming_summary} />
-                </td>
-                <td>
-                  <SummaryTag summary={player.playoff_summary} />
-                </td>
+                <th>Next {data.weeks_ahead}</th>
+                <th>Playoffs</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.outlook.map((player) => (
+                <tr key={player.espn_player_id}>
+                  <td>{player.name}</td>
+                  <td>
+                    <PositionTag position={player.position} />
+                  </td>
+                  <td className="hint num">{player.bye_week ?? "-"}</td>
+                  {player.upcoming.map((week) => (
+                    <td key={week.week}>
+                      <WeekCell week={week} />
+                    </td>
+                  ))}
+                  <td>
+                    <SummaryTag summary={player.upcoming_summary} />
+                  </td>
+                  <td>
+                    <SummaryTag summary={player.playoff_summary} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   );

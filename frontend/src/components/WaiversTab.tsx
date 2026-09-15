@@ -3,6 +3,7 @@ import type { WaiverResponse } from "../types";
 import { api } from "../api";
 import { MatchupTag } from "./MatchupTag";
 import { TrendTag } from "./TrendTag";
+import { InjuryBadge } from "./InjuryBadge";
 
 export function WaiversTab({ leagueId }: { leagueId: number }) {
   const [data, setData] = useState<WaiverResponse | null>(null);
@@ -38,38 +39,43 @@ export function WaiversTab({ leagueId }: { leagueId: number }) {
       {data.recommendations.map((rec) => (
         <div key={rec.position} className="waiver-group">
           <h3>{rec.position}</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Add</th>
-                <th>Proj.</th>
-                <th>Matchup</th>
-                <th>% Owned</th>
-                <th>Drop</th>
-                <th>Net Gain</th>
-                <th>Suggested FAAB</th>
-                <th>Usage Trend</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rec.suggestions.map((s, i) => (
-                <tr key={i}>
-                  <td>{s.add.name}</td>
-                  <td>{s.add.projected_points ?? "-"}</td>
-                  <td>
-                    <MatchupTag matchup={s.add.matchup} />
-                  </td>
-                  <td>{s.add.percent_owned}%</td>
-                  <td>{s.drop_candidate ? s.drop_candidate.name : "-"}</td>
-                  <td>+{s.point_upgrade}</td>
-                  <td>{s.suggested_faab_pct}%</td>
-                  <td>
-                    <TrendTag trend={s.add.trend} />
-                  </td>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Add</th>
+                  <th className="num">Proj.</th>
+                  <th>Matchup</th>
+                  <th className="num">% Owned</th>
+                  <th>Drop</th>
+                  <th className="num">Net Gain</th>
+                  <th className="num">Suggested FAAB</th>
+                  <th>Usage Trend</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rec.suggestions.map((s, i) => (
+                  <tr key={i}>
+                    <td>
+                      {s.add.name}
+                      <InjuryBadge status={s.add.injury_status} />
+                    </td>
+                    <td className="num">{s.add.projected_points ?? "-"}</td>
+                    <td>
+                      <MatchupTag matchup={s.add.matchup} />
+                    </td>
+                    <td className="num">{s.add.percent_owned}%</td>
+                    <td>{s.drop_candidate ? s.drop_candidate.name : "-"}</td>
+                    <td className="num">+{s.point_upgrade}</td>
+                    <td className="num">{s.suggested_faab_pct}%</td>
+                    <td>
+                      <TrendTag trend={s.add.trend} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ))}
     </div>
