@@ -306,6 +306,17 @@ def list_leagues(db: Session = Depends(get_db), current_user: User = Depends(get
     return [_league_summary(db, league) for league in leagues]
 
 
+@app.delete("/api/league/{league_id}", status_code=204)
+def delete_league(league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Removes a league you've synced — just yours, not anyone else's copy
+    of the same ESPN league (see the (user_id, espn_league_id, season)
+    uniqueness on League). Cascades to its teams/rosters/players/stat
+    history (see the League relationships in models.py)."""
+    league = _owned_league_or_404(db, league_id, current_user)
+    db.delete(league)
+    db.commit()
+
+
 @app.post("/api/sync")
 def sync(
     payload: SyncRequest,

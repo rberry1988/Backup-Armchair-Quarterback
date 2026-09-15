@@ -5,13 +5,15 @@ import { ApiError, api } from "../api";
 interface Props {
   league: LeagueSummary | null;
   onLeagueChange: (league: LeagueSummary) => void;
+  onLeagueRemoved: (leagueId: number) => void;
 }
 
-export function SetupPanel({ league, onLeagueChange }: Props) {
+export function SetupPanel({ league, onLeagueChange, onLeagueRemoved }: Props) {
   const [leagueId, setLeagueId] = useState(league ? String(league.espn_league_id) : "");
   const [season, setSeason] = useState(league ? String(league.season) : String(new Date().getFullYear()));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   async function handleSync() {
     setLoading(true);
@@ -39,6 +41,26 @@ export function SetupPanel({ league, onLeagueChange }: Props) {
     }
   }
 
+  async function handleRemove() {
+    if (!league) return;
+    if (
+      !window.confirm(
+        `Remove ${league.name}? This deletes your synced roster/stat history for it. You can re-sync it later, but it starts over from scratch.`
+      )
+    )
+      return;
+    setError(null);
+    setRemoving(true);
+    try {
+      await api.deleteLeague(league.id);
+      onLeagueRemoved(league.id);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to remove league.");
+    } finally {
+      setRemoving(false);
+    }
+  }
+
   return (
     <div className="panel">
       <h2>League Setup</h2>
@@ -63,8 +85,16 @@ export function SetupPanel({ league, onLeagueChange }: Props) {
 
       {league && (
         <>
-          <h3>
+          <h3 style={{ display: "flex", alignItems: "baseline", gap: "0.6rem" }}>
             {league.name} &mdash; Week {league.current_week}
+            <button
+              type="button"
+              onClick={handleRemove}
+              disabled={removing}
+              style={{ marginLeft: "auto", fontSize: "0.8rem" }}
+            >
+              {removing ? "Removing..." : "Remove League"}
+            </button>
           </h3>
           <label className="team-picker">
             Your team:

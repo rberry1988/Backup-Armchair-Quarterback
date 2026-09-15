@@ -102,6 +102,16 @@ function App() {
     if (found) setLeague(found);
   }
 
+  function handleLeagueRemoved(leagueId: number) {
+    const remaining = leagues.filter((l) => l.id !== leagueId);
+    setLeagues(remaining);
+    if (league?.id === leagueId) {
+      const next = remaining[0] ?? null;
+      setLeague(next);
+      setTab(next && next.my_team_id != null ? "alerts" : "setup");
+    }
+  }
+
   function handleLogout() {
     clearToken();
     setUser(null);
@@ -168,7 +178,9 @@ function App() {
       </nav>
 
       <main>
-        {tab === "setup" && <SetupPanel league={league} onLeagueChange={handleLeagueChange} />}
+        {tab === "setup" && (
+          <SetupPanel league={league} onLeagueChange={handleLeagueChange} onLeagueRemoved={handleLeagueRemoved} />
+        )}
         {tab === "roster" && league && <RosterTab leagueId={league.id} />}
         {tab === "start-sit" && league && <StartSitTab leagueId={league.id} />}
         {tab === "waivers" && league && <WaiversTab leagueId={league.id} />}

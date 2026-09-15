@@ -97,6 +97,7 @@ export const api = {
       body: JSON.stringify({ league_id: leagueId, season }),
     }),
   getLeague: (leagueId: number) => request<LeagueSummary>(`/api/league/${leagueId}`),
+  deleteLeague: (leagueId: number) => request<void>(`/api/league/${leagueId}`, { method: "DELETE" }),
   setMyTeam: (leagueId: number, teamId: number) =>
     request<LeagueSummary>(`/api/league/${leagueId}/my-team`, {
       method: "POST",
