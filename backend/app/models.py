@@ -74,6 +74,13 @@ class League(Base):
 
     user: Mapped[User] = relationship(back_populates="leagues")
     teams: Mapped[list["Team"]] = relationship(back_populates="league", cascade="all, delete-orphan")
+    # Player and PlayerWeekStat both carry a league_id FK but were missing a
+    # relationship here — without one, deleting a League (e.g. removing a
+    # user cascades to their leagues, see main.py's admin_delete_user) left
+    # every Player and PlayerWeekStat row for it permanently orphaned, since
+    # SQLite isn't running with FK enforcement/ON DELETE CASCADE either.
+    players: Mapped[list["Player"]] = relationship(cascade="all, delete-orphan")
+    player_week_stats: Mapped[list["PlayerWeekStat"]] = relationship(cascade="all, delete-orphan")
 
 
 class Team(Base):

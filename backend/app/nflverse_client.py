@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import csv
 import os
+import tempfile
 import time
 
 import httpx
@@ -41,10 +42,17 @@ def _cached_download(url: str, cache_filename: str) -> str | None:
     except httpx.HTTPError:
         return cache_path if os.path.exists(cache_path) else None
 
-    tmp_path = cache_path + ".tmp"
-    with open(tmp_path, "wb") as f:
-        f.write(resp.content)
-    os.replace(tmp_path, cache_path)
+    # A unique per-write temp name (not a fixed "<cache_path>.tmp") so two
+    # concurrent syncs refreshing the same cache file can't interleave
+    # writes to the same staging path before either renames it into place.
+    fd, tmp_path = tempfile.mkstemp(dir=CACHE_DIR, prefix=cache_filename + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(resp.content)
+        os.replace(tmp_path, cache_path)
+    except BaseException:
+        os.unlink(tmp_path)
+        raise
     return cache_path
 
 

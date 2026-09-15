@@ -106,7 +106,7 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
     for team_json in data.get("teams", []):
         record = team_json.get("record", {}).get("overall", {})
         team = Team(
-            espn_team_id=team_json["id"],
+            espn_team_id=team_json.get("id"),
             league_id=league_id,
             name=_team_name(team_json),
             abbrev=team_json.get("abbrev", ""),

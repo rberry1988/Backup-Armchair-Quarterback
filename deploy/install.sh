@@ -70,23 +70,30 @@ echo "==> Setting up app directory at $APP_DIR"
 # permissions beyond what this service already has.
 if [ -d "$APP_DIR/.git" ]; then
     echo "    Already a git checkout — pulling the latest commit"
-    git -C "$APP_DIR" pull --ff-only
+    # Runs as $APP_USER, not root: $APP_DIR is owned by $APP_USER from the
+    # last run's chown below, and git (2.35.2+) refuses to operate on a
+    # repo owned by a different user ("dubious ownership" protection,
+    # CVE-2022-24765) — running this as root would fail on every re-run.
+    sudo -u "$APP_USER" git -C "$APP_DIR" pull --ff-only
 elif [ -d "$APP_DIR" ] && [ -n "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
     echo "    Found an existing install from before this script deployed via git clone."
     echo "    Migrating it in place: backend/.env and backend/data are kept, everything"
     echo "    else is replaced by a fresh clone (deployed code was always meant to just"
     echo "    be a checkout, so nothing else there is expected to differ from git)."
-    PRESERVE_DIR="$(mktemp -d)"
-    [ -f "$APP_DIR/backend/.env" ] && mv "$APP_DIR/backend/.env" "$PRESERVE_DIR/env"
-    [ -d "$APP_DIR/backend/data" ] && mv "$APP_DIR/backend/data" "$PRESERVE_DIR/data"
-    rm -rf "$APP_DIR"
     REMOTE_URL="$(git -C "$SOURCE_DIR" remote get-url origin)"
     BRANCH="$(git -C "$SOURCE_DIR" rev-parse --abbrev-ref HEAD)"
-    git clone --branch "$BRANCH" "$REMOTE_URL" "$APP_DIR"
-    mkdir -p "$APP_DIR/backend"
-    [ -f "$PRESERVE_DIR/env" ] && mv "$PRESERVE_DIR/env" "$APP_DIR/backend/.env"
-    [ -d "$PRESERVE_DIR/data" ] && mv "$PRESERVE_DIR/data" "$APP_DIR/backend/data"
-    rm -rf "$PRESERVE_DIR"
+    # Clone into a fresh staging directory first and only touch $APP_DIR
+    # once that succeeds — if the clone fails partway (network blip, bad
+    # branch, disk full), the old $APP_DIR and its .env/data are left
+    # completely untouched instead of being deleted with no way back.
+    STAGING_DIR="$(mktemp -d)/checkout"
+    git clone --branch "$BRANCH" "$REMOTE_URL" "$STAGING_DIR"
+    mkdir -p "$STAGING_DIR/backend"
+    [ -f "$APP_DIR/backend/.env" ] && mv "$APP_DIR/backend/.env" "$STAGING_DIR/backend/.env"
+    [ -d "$APP_DIR/backend/data" ] && mv "$APP_DIR/backend/data" "$STAGING_DIR/backend/data"
+    rm -rf "$APP_DIR"
+    mv "$STAGING_DIR" "$APP_DIR"
+    rmdir "$(dirname "$STAGING_DIR")" 2>/dev/null || true
 else
     REMOTE_URL="$(git -C "$SOURCE_DIR" remote get-url origin)"
     BRANCH="$(git -C "$SOURCE_DIR" rev-parse --abbrev-ref HEAD)"

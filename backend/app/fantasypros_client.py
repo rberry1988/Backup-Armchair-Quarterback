@@ -17,6 +17,7 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import tempfile
 import time
 
 import httpx
@@ -70,10 +71,17 @@ def _cached_get(endpoint: str, params: dict, cache_key: str) -> dict | None:
     except (httpx.HTTPError, ValueError):
         return None
 
-    tmp_path = path + ".tmp"
-    with open(tmp_path, "w") as f:
-        json.dump(data, f)
-    os.replace(tmp_path, path)
+    # A unique per-write temp name (not a fixed "<path>.tmp") so two
+    # concurrent syncs refreshing the same cache entry can't interleave
+    # writes to the same staging path before either renames it into place.
+    fd, tmp_path = tempfile.mkstemp(dir=CACHE_DIR, prefix=os.path.basename(path) + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f)
+        os.replace(tmp_path, path)
+    except BaseException:
+        os.unlink(tmp_path)
+        raise
     return data
 
 

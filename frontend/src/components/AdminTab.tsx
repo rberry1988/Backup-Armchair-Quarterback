@@ -1,9 +1,9 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { AdminUser, UpdateResult } from "../types";
 import { ApiError, api } from "../api";
 
 const POLL_INTERVAL_MS = 2000;
-const POLL_MAX_ATTEMPTS = 30; // ~60s — a cold uvicorn start is normally a couple seconds
+const POLL_MAX_ATTEMPTS = 90; // ~3min, matching the confirm dialog's own "can take a couple of minutes"
 
 export function AdminTab({ currentUserId }: { currentUserId: number }) {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
@@ -20,8 +20,23 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
   const [resetting, setResetting] = useState(false);
   const [justResetId, setJustResetId] = useState<number | null>(null);
 
-  const [updateState, setUpdateState] = useState<"idle" | "updating" | "restarting" | "done">("idle");
+  const [updateState, setUpdateState] = useState<"idle" | "updating" | "restarting" | "done" | "timed-out">("idle");
   const [updateResult, setUpdateResult] = useState<UpdateResult | null>(null);
+
+  // pollUntilBackUp's recursive setTimeout chain outlives this component if
+  // the admin navigates to another tab while "Restarting..." is showing
+  // (AdminTab unmounts entirely — see App.tsx). Without these guards it
+  // keeps polling in the background and eventually calls setState on an
+  // unmounted instance.
+  const mountedRef = useRef(true);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+    },
+    []
+  );
 
   function load() {
     api
@@ -91,6 +106,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
     setUpdateResult(null);
     try {
       const result = await api.adminUpdate();
+      if (!mountedRef.current) return;
       setUpdateResult(result);
       if (result.restarting) {
         setUpdateState("restarting");
@@ -99,6 +115,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
         setUpdateState("done");
       }
     } catch (err) {
+      if (!mountedRef.current) return;
       setUpdateResult({
         error: "request_failed",
         detail: err instanceof ApiError ? err.message : "The update request failed.",
@@ -110,13 +127,19 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
   function pollUntilBackUp(attempt = 0) {
     api
       .me()
-      .then(() => setUpdateState("done"))
+      .then(() => {
+        if (mountedRef.current) setUpdateState("done");
+      })
       .catch(() => {
+        if (!mountedRef.current) return;
         if (attempt >= POLL_MAX_ATTEMPTS) {
-          setUpdateState("done"); // give up quietly; the status text explains what to do
+          // Gave up without ever confirming the backend came back — a
+          // distinct state from "done" so the UI doesn't falsely claim
+          // success (see the "timed-out" branch in the render below).
+          setUpdateState("timed-out");
           return;
         }
-        setTimeout(() => pollUntilBackUp(attempt + 1), POLL_INTERVAL_MS);
+        pollTimeoutRef.current = setTimeout(() => pollUntilBackUp(attempt + 1), POLL_INTERVAL_MS);
       });
   }
 
@@ -269,6 +292,16 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
                 <button type="button" onClick={() => window.location.reload()}>
                   Reload page
                 </button>
+              </p>
+            )}
+            {updateResult.changed && updateResult.restarting && updateState === "timed-out" && (
+              <p className="error">
+                Still couldn't reach the backend after a few minutes &mdash; it may still be restarting, or may
+                have failed to come back up. Check <code>systemctl status</code> / the service logs, then{" "}
+                <button type="button" onClick={() => window.location.reload()}>
+                  reload the page
+                </button>{" "}
+                to check.
               </p>
             )}
 

@@ -155,33 +155,51 @@ def get_trade_suggestions(db: Session, league_id: int, my_team_id: int) -> dict:
     }
 
 
-def _ros_value(db: Session, league: League, espn_player_id: int) -> tuple[float, str, str]:
-    """Rest-of-season value: average projected points across weeks from now
-    onward that ESPN has a projection for. Falls back to the single
-    current-week projection cached on Player if no snapshot history exists
-    yet (e.g. right after the very first sync for a far-future week)."""
+def _ros_values(db: Session, league: League, espn_player_ids: list[int]) -> dict[int, tuple[float, str, str]]:
+    """Rest-of-season value for a batch of players in two queries total
+    (one for snapshot history, one fallback for players with none) instead
+    of one_ros_value-style pair of queries per player id."""
+    if not espn_player_ids:
+        return {}
+
     rows = (
         db.query(PlayerWeekStat)
         .filter(
             PlayerWeekStat.league_id == league.id,
-            PlayerWeekStat.espn_player_id == espn_player_id,
+            PlayerWeekStat.espn_player_id.in_(espn_player_ids),
             PlayerWeekStat.week >= league.current_week,
             PlayerWeekStat.projected_points.isnot(None),
         )
         .all()
     )
-    if rows:
-        avg = sum(r.projected_points for r in rows) / len(rows)
-        return avg, rows[0].full_name, rows[0].position
+    rows_by_id: dict[int, list[PlayerWeekStat]] = defaultdict(list)
+    for row in rows:
+        rows_by_id[row.espn_player_id].append(row)
 
-    player = (
-        db.query(Player)
-        .filter(Player.league_id == league.id, Player.espn_player_id == espn_player_id)
-        .first()
-    )
-    if player:
-        return points_or_default(player), player.full_name, player.position
-    return 0.0, f"Player {espn_player_id}", "?"
+    result: dict[int, tuple[float, str, str]] = {}
+    for espn_player_id, player_rows in rows_by_id.items():
+        avg = sum(r.projected_points for r in player_rows) / len(player_rows)
+        result[espn_player_id] = (avg, player_rows[0].full_name, player_rows[0].position)
+
+    # Rest-of-season value: average projected points across weeks from now
+    # onward that ESPN has a projection for. Players with no snapshot
+    # history yet (e.g. right after the very first sync for a far-future
+    # week) fall back to the single current-week projection cached on Player.
+    missing_ids = [pid for pid in espn_player_ids if pid not in result]
+    if missing_ids:
+        players = (
+            db.query(Player)
+            .filter(Player.league_id == league.id, Player.espn_player_id.in_(missing_ids))
+            .all()
+        )
+        players_by_id = {p.espn_player_id: p for p in players}
+        for pid in missing_ids:
+            player = players_by_id.get(pid)
+            if player:
+                result[pid] = (points_or_default(player), player.full_name, player.position)
+            else:
+                result[pid] = (0.0, f"Player {pid}", "?")
+    return result
 
 
 def _expert_summary(context: dict | None) -> dict | None:
@@ -257,9 +275,10 @@ def grade_trade(
         return needs
 
     def describe(espn_player_ids: list[int]) -> list[dict]:
+        values = _ros_values(db, league, espn_player_ids)
         players = []
         for pid in espn_player_ids:
-            value, name, position = _ros_value(db, league, pid)
+            value, name, position = values[pid]
             players.append(
                 {
                     "espn_player_id": pid,

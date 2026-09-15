@@ -254,6 +254,19 @@ def sync(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # ESPN_S2/ESPN_SWID are a single operator-configured credential shared
+    # by every user of this instance. Once they're set, letting any
+    # authenticated (non-admin) user sync an arbitrary league_id would use
+    # the operator's own private ESPN session to pull whatever private
+    # league that id names into the requester's account — data they have
+    # no legitimate access to. Public leagues carry no such risk, so this
+    # restriction only kicks in once private-league cookies are in play.
+    if settings.espn_s2 and settings.espn_league_id and not is_admin(current_user):
+        if payload.league_id != settings.espn_league_id or payload.season != settings.espn_season:
+            raise HTTPException(
+                status_code=403,
+                detail="This instance is configured for one private ESPN league; only an admin can sync a different one.",
+            )
     try:
         league = sync_league(db, user_id=current_user.id, espn_league_id=payload.league_id, season=payload.season)
     except ESPNClientError as exc:

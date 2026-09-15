@@ -1,6 +1,6 @@
 import datetime
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 def _min_length_password(v: str) -> str:
@@ -20,9 +20,13 @@ class SetMyTeamRequest(BaseModel):
 
 class TradeGradeRequest(BaseModel):
     team_a_id: int
-    team_a_sends: list[int]
+    # Capped well above any real roster size (typically ~16-20 players) —
+    # mainly to keep grade_trade()'s per-player DB lookups bounded rather
+    # than letting a malformed/adversarial request force an arbitrarily
+    # large batch query.
+    team_a_sends: list[int] = Field(max_length=25)
     team_b_id: int
-    team_b_sends: list[int]
+    team_b_sends: list[int] = Field(max_length=25)
 
 
 class RegisterRequest(BaseModel):

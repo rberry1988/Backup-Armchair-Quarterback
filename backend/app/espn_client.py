@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import time
 from typing import Any
 
@@ -105,10 +106,18 @@ def fetch_season_schedule(season: int) -> dict[int, dict[int, dict]]:
     if not season_schedule:
         return {}
 
-    tmp_path = cache_path + ".tmp"
-    with open(tmp_path, "w") as f:
-        json.dump(season_schedule, f)
-    os.replace(tmp_path, cache_path)
+    # A unique per-write temp name (not a fixed "<cache_path>.tmp") so two
+    # concurrent syncs refreshing the same season's schedule cache can't
+    # interleave writes to the same staging path before either renames it
+    # into place.
+    fd, tmp_path = tempfile.mkstemp(dir=SCHEDULE_CACHE_DIR, prefix=f"season_{season}.json.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(season_schedule, f)
+        os.replace(tmp_path, cache_path)
+    except BaseException:
+        os.unlink(tmp_path)
+        raise
     return season_schedule
 
 

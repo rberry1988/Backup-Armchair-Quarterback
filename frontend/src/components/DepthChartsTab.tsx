@@ -11,14 +11,21 @@ export function DepthChartsTab({ leagueId }: { leagueId: number }) {
   const [team, setTeam] = useState<string | null>(null);
 
   useEffect(() => {
+    let ignore = false;
     api
       .getDepthCharts(leagueId)
       .then((res) => {
+        if (ignore) return;
         setData(res);
         const teams = Object.keys(res.depth_charts).sort();
         setTeam(teams[0] ?? null);
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        if (!ignore) setError(e.message);
+      });
+    return () => {
+      ignore = true;
+    };
   }, [leagueId]);
 
   if (error) return <p className="error">{error}</p>;

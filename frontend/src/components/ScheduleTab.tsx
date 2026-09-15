@@ -20,10 +20,18 @@ export function ScheduleTab({ leagueId }: { leagueId: number }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let ignore = false;
     api
       .getScheduleOutlook(leagueId)
-      .then(setData)
-      .catch((e) => setError(e.message));
+      .then((res) => {
+        if (!ignore) setData(res);
+      })
+      .catch((e) => {
+        if (!ignore) setError(e.message);
+      });
+    return () => {
+      ignore = true;
+    };
   }, [leagueId]);
 
   if (error) return <p className="error">{error}</p>;

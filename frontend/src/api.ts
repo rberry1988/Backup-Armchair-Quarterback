@@ -61,7 +61,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new ApiError(message, res.status);
   }
   if (res.status === 204) return undefined as T;
-  return res.json();
+  try {
+    return await res.json();
+  } catch {
+    // A 200 with a malformed/empty body (e.g. a proxy returning HTML on a
+    // transient upstream error) would otherwise throw a raw SyntaxError
+    // that callers' `instanceof ApiError` checks don't recognize.
+    throw new ApiError("Received an invalid response from the server.", res.status);
+  }
 }
 
 export const api = {

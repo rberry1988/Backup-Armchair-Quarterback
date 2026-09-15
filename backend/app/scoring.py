@@ -105,6 +105,11 @@ def extract_player_core(player_json: dict) -> dict[str, Any]:
         "pro_team_id": player_json.get("proTeamId"),
         "injury_status": player_json.get("injuryStatus", "ACTIVE"),
         "eligible_slots": player_json.get("eligibleSlots", []),
-        "percent_owned": ownership.get("percentOwned", 0.0),
-        "percent_started": ownership.get("percentStarted", 0.0),
+        # `.get(..., 0.0)` only supplies the default when the key is
+        # missing — ESPN sometimes sends an explicit `null` for these,
+        # which would otherwise flow through as None and crash later
+        # comparisons/rounding (depth_charts sort, waivers percent_owned
+        # round()).
+        "percent_owned": ownership.get("percentOwned") or 0.0,
+        "percent_started": ownership.get("percentStarted") or 0.0,
     }

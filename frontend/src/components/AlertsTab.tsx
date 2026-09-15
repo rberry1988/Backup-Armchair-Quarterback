@@ -30,12 +30,19 @@ export function AlertsTab({ leagueId }: { leagueId: number }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let ignore = false;
     Promise.all([api.getAlerts(leagueId), api.getChanges(leagueId)])
       .then(([a, c]) => {
+        if (ignore) return;
         setAlerts(a);
         setChanges(c);
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        if (!ignore) setError(e.message);
+      });
+    return () => {
+      ignore = true;
+    };
   }, [leagueId]);
 
   if (error) return <p className="error">{error}</p>;

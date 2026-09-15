@@ -30,8 +30,13 @@ export function SetupPanel({ league, onLeagueChange }: Props) {
 
   async function handleSelectTeam(teamId: number) {
     if (!league) return;
-    const updated = await api.setMyTeam(league.id, teamId);
-    onLeagueChange(updated);
+    setError(null);
+    try {
+      const updated = await api.setMyTeam(league.id, teamId);
+      onLeagueChange(updated);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to save your team selection.");
+    }
   }
 
   return (

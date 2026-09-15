@@ -14,16 +14,23 @@ export function TradeGraderTab({ leagueId, myTeamId }: { leagueId: number; myTea
   const [grading, setGrading] = useState(false);
 
   useEffect(() => {
+    let ignore = false;
     api
       .getTeamsWithRosters(leagueId)
       .then((data) => {
+        if (ignore) return;
         setTeams(data);
         const defaultA = myTeamId ?? data[0]?.id ?? null;
         const defaultB = data.find((t) => t.id !== defaultA)?.id ?? null;
         setTeamAId(defaultA);
         setTeamBId(defaultB);
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        if (!ignore) setError(e.message);
+      });
+    return () => {
+      ignore = true;
+    };
   }, [leagueId, myTeamId]);
 
   const teamA = useMemo(() => teams?.find((t) => t.id === teamAId) ?? null, [teams, teamAId]);

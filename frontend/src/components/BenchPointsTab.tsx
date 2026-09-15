@@ -8,10 +8,18 @@ export function BenchPointsTab({ leagueId }: { leagueId: number }) {
   const [expanded, setExpanded] = useState<number | null>(null);
 
   useEffect(() => {
+    let ignore = false;
     api
       .getBenchPoints(leagueId)
-      .then(setData)
-      .catch((e) => setError(e.message));
+      .then((res) => {
+        if (!ignore) setData(res);
+      })
+      .catch((e) => {
+        if (!ignore) setError(e.message);
+      });
+    return () => {
+      ignore = true;
+    };
   }, [leagueId]);
 
   if (error) return <p className="error">{error}</p>;
