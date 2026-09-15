@@ -159,6 +159,15 @@ service with the new code at the end.
 
 **Notes:**
 
+- The script installs Python 3.12 (falling back to 3.11, then whatever
+  `python3` the OS ships) for the backend's virtualenv specifically,
+  rather than trusting the OS default — a very new default Python (3.14+
+  on a sufficiently recent distro) can predate prebuilt wheels for some
+  pinned dependency, which makes `pip install` try to compile it from
+  source and fail with a Rust/C toolchain error. If you hit that on an
+  older checkout of this script, `git pull` and re-run
+  `sudo bash deploy/install.sh`: it detects a venv built on the wrong
+  Python version and rebuilds it automatically.
 - If `ufw` is enabled in the container, allow HTTP: `sudo ufw allow
   80/tcp`. If the Proxmox host firewall is also enabled for this CT,
   allow port 80 there too.

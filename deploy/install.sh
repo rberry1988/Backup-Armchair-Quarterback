@@ -18,13 +18,42 @@ APP_USER="baq"
 APP_DIR="/opt/${APP_NAME}"
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-echo "==> Installing system packages (python3, node, nginx, rsync)"
+echo "==> Installing system packages (node, nginx, rsync)"
 apt-get update -qq
-apt-get install -y -qq python3 python3-venv python3-pip nodejs npm nginx rsync
+apt-get install -y -qq nodejs npm nginx rsync
+
+# Pin the backend to a specific Python version rather than trusting
+# whatever `python3` the OS happens to default to. A brand-new default
+# (e.g. 3.14 on a very recent distro) can predate prebuilt wheels for
+# some of our pinned dependencies — pip then falls back to compiling
+# from source, which needs a Rust/C toolchain this script doesn't
+# install, and fails. 3.12 and 3.11 both have full wheel coverage for
+# everything in requirements.txt; the OS's own python3 is the last resort.
+PYTHON_BIN=""
+for candidate in python3.12 python3.11; do
+    if apt-get install -y -qq "$candidate" "${candidate}-venv" 2>/dev/null; then
+        PYTHON_BIN="$candidate"
+        break
+    fi
+done
+if [ -z "$PYTHON_BIN" ]; then
+    echo "    Neither python3.12 nor python3.11 available from apt; falling back to python3"
+    apt-get install -y -qq python3 python3-venv python3-pip
+    PYTHON_BIN=python3
+fi
+echo "    Using $PYTHON_BIN for the backend virtualenv"
 
 echo "==> Creating service user ($APP_USER)"
 if ! id "$APP_USER" &>/dev/null; then
-    useradd --system --no-create-home --shell /usr/sbin/nologin "$APP_USER"
+    # --home-dir here (not a separate /home/baq, never created since
+    # --no-create-home) points $HOME at $APP_DIR once it exists below —
+    # so pip/npm's caches land somewhere already writable by this user,
+    # instead of failing outright when they try to use a home directory
+    # that doesn't exist.
+    useradd --system --no-create-home --home-dir "$APP_DIR" --shell /usr/sbin/nologin "$APP_USER"
+else
+    # Fix up a pre-existing install from before this was set correctly.
+    usermod --home "$APP_DIR" "$APP_USER" 2>/dev/null || true
 fi
 
 echo "==> Syncing app source to $APP_DIR"
@@ -46,8 +75,20 @@ echo "==> Setting ownership"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
 echo "==> Setting up backend virtualenv"
+if [ -d "$APP_DIR/backend/.venv" ]; then
+    # A venv built by an earlier run against a different Python (e.g. the
+    # OS's own too-new python3, before this script started pinning one)
+    # needs recreating rather than reused, or pip install below would hit
+    # the exact same wheel-availability problem all over again.
+    existing_version="$("$APP_DIR/backend/.venv/bin/python3" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo "unknown")"
+    wanted_version="$("$PYTHON_BIN" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+    if [ "$existing_version" != "$wanted_version" ]; then
+        echo "    Existing venv uses Python $existing_version; recreating with $wanted_version"
+        rm -rf "$APP_DIR/backend/.venv"
+    fi
+fi
 if [ ! -d "$APP_DIR/backend/.venv" ]; then
-    sudo -u "$APP_USER" python3 -m venv "$APP_DIR/backend/.venv"
+    sudo -u "$APP_USER" "$PYTHON_BIN" -m venv "$APP_DIR/backend/.venv"
 fi
 sudo -u "$APP_USER" "$APP_DIR/backend/.venv/bin/pip" install -q --upgrade pip
 sudo -u "$APP_USER" "$APP_DIR/backend/.venv/bin/pip" install -q -r "$APP_DIR/backend/requirements.txt"
