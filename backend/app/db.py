@@ -64,4 +64,5 @@ def init_db():
 
     with engine.connect() as conn:
         _ensure_column(conn, "users", "admin_granted", "BOOLEAN NOT NULL DEFAULT 0")
+        _ensure_column(conn, "leagues", "fantasycalc_values", "JSON DEFAULT '{}'")
         conn.commit()

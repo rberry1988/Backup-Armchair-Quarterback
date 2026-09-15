@@ -80,6 +80,12 @@ class League(Base):
     # bench-points endpoint (each past week costs an ESPN boxscore request,
     # so weeks already computed are never re-fetched). See app/bench_points.py.
     bench_points: Mapped[dict] = mapped_column(JSON, default=dict)
+    # FantasyCalc market trade values, scaled to this league's format (team
+    # count, PPR, QB slots) — {str(espn_player_id): {value, position_rank,
+    # overall_rank, tier, trend_30_day}}. See app/fantasycalc_client.py.
+    # Free API, no key needed; empty only if FantasyCalc was unreachable at
+    # sync time.
+    fantasycalc_values: Mapped[dict] = mapped_column(JSON, default=dict)
 
     user: Mapped[User] = relationship(back_populates="leagues")
     teams: Mapped[list["Team"]] = relationship(back_populates="league", cascade="all, delete-orphan")

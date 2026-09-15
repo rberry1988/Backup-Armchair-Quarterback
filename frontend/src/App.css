@@ -456,3 +456,13 @@ button:disabled {
   font-size: 0.7rem;
   white-space: nowrap;
 }
+
+.fc-badge {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  background: #1e4a4a;
+  color: #6fd6d6;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}

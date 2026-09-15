@@ -16,6 +16,7 @@ from collections import defaultdict
 
 from sqlalchemy.orm import Session, selectinload
 
+from app.fantasycalc_client import get_trade_value
 from app.fantasypros_client import get_expert_context
 from app.models import League, Player, PlayerWeekStat, RosterEntry, Team
 from app.recommendations.common import points_or_default
@@ -286,6 +287,7 @@ def grade_trade(
                     "position": position,
                     "ros_value": round(value, 1),
                     "expert": _expert_summary(get_expert_context(league.expert_rankings, pid)),
+                    "fantasycalc": get_trade_value(league.fantasycalc_values, pid),
                 }
             )
         return players

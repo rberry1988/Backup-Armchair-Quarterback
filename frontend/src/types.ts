@@ -94,6 +94,7 @@ export interface RosterPlayer {
   percent_owned: number;
   trend: PlayerTrend | null;
   consistency: PlayerConsistency | null;
+  fantasycalc: FantasyCalcValue | null;
 }
 
 export interface RosterResponse {
@@ -184,12 +185,21 @@ export interface ExpertContext {
   rank_max: number | null;
 }
 
+export interface FantasyCalcValue {
+  value: number;
+  position_rank: number | null;
+  overall_rank: number | null;
+  tier: number | null;
+  trend_30_day: number | null;
+}
+
 export interface TradeGradePlayer {
   espn_player_id: number;
   name: string;
   position: string;
   ros_value: number;
   expert: ExpertContext | null;
+  fantasycalc: FantasyCalcValue | null;
 }
 
 export interface TradeGradeSide {

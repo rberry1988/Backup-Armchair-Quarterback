@@ -13,6 +13,7 @@ from app.advanced_stats import (
 from app.app_settings import get_fantasypros_api_key
 from app.espn_client import ESPNClient, compute_bye_weeks, fetch_season_schedule, fetch_week_schedule
 from app.espn_constants import is_bench_slot, lineup_slot_label, position_from_id
+from app.fantasycalc_client import fetch_player_values, num_qbs_from_roster_slots, ppr_from_scoring_rules
 from app.fantasypros_client import fetch_expert_rankings_bundle, infer_scoring_format
 from app.models import League, Player, PlayerWeekStat, RosterEntry, Team
 from app.nflverse_client import fetch_id_crosswalk, fetch_snap_counts, fetch_weekly_player_stats
@@ -273,6 +274,20 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
     )
     if new_expert_rankings:
         league.expert_rankings = new_expert_rankings
+
+    # FantasyCalc market trade values, scaled to this league's actual format
+    # — free API, no key needed, but still best-effort: fetch_player_values()
+    # returns {} on any failure, and we leave last sync's values alone
+    # rather than clobbering them with an empty result.
+    num_teams = len(data.get("teams", []))
+    if num_teams:
+        new_fantasycalc_values = fetch_player_values(
+            num_teams=num_teams,
+            ppr=ppr_from_scoring_rules(scoring_rules),
+            num_qbs=num_qbs_from_roster_slots(roster_slot_counts),
+        )
+        if new_fantasycalc_values:
+            league.fantasycalc_values = {str(pid): value for pid, value in new_fantasycalc_values.items()}
 
     db.commit()
     db.refresh(league)

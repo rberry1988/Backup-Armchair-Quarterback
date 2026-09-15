@@ -6,17 +6,23 @@ import { PositionTag } from "./PositionTag";
 import { InjuryBadge } from "./InjuryBadge";
 import { formatPoints } from "../formatPoints";
 
-type SortKey = "default" | "name" | "projected_points";
+type SortKey = "default" | "name" | "projected_points" | "fantasycalc_value";
 
 const SORT_COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
   { key: "name", label: "Player" },
   { key: "projected_points", label: "Proj.", numeric: true },
+  { key: "fantasycalc_value", label: "Value", numeric: true },
 ];
+
+function fantasyCalcValue(p: RosterPlayer): number {
+  return p.fantasycalc?.value ?? -Infinity;
+}
 
 function sortRoster(roster: RosterPlayer[], key: SortKey, dir: "asc" | "desc"): RosterPlayer[] {
   if (key === "default") return roster;
   const sorted = [...roster].sort((a, b) => {
     if (key === "name") return a.name.localeCompare(b.name);
+    if (key === "fantasycalc_value") return fantasyCalcValue(a) - fantasyCalcValue(b);
     const av = a[key] ?? -Infinity;
     const bv = b[key] ?? -Infinity;
     return av - bv;
@@ -83,6 +89,7 @@ export function RosterTab({ leagueId }: { leagueId: number }) {
                 <td>{p.slot}</td>
                 <td>{p.name}</td>
                 <td className="num">{formatPoints(p.projected_points)}</td>
+                <td className="num">{p.fantasycalc ? p.fantasycalc.value : "—"}</td>
                 <td>
                   <PositionTag position={p.position} />
                 </td>

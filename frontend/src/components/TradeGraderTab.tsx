@@ -208,6 +208,12 @@ function PlayerList({ players }: { players: TradeGradePlayer[] }) {
               {p.expert.pos_rank} {ECR_ARROW[p.expert.trend]}
             </span>
           )}
+          {p.fantasycalc && (
+            <span className="fc-badge" title="FantasyCalc market trade value (consensus from real user trades)">
+              {" "}
+              FC {p.fantasycalc.value}
+            </span>
+          )}
         </span>
       ))}
     </>
