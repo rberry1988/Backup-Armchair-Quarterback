@@ -6,16 +6,49 @@ interface Props {
   league: LeagueSummary | null;
   leagues: LeagueSummary[];
   onLeagueChange: (league: LeagueSummary) => void;
+  onLeagueUpdated: (league: LeagueSummary) => void;
   onLeagueRemoved: (leagueId: number) => void;
   onLeagueSelect: (leagueId: number) => void;
 }
 
-export function SetupPanel({ league, leagues, onLeagueChange, onLeagueRemoved, onLeagueSelect }: Props) {
+// Off, plus a few sensible cadences. Hourly is the floor the backend
+// enforces too (see auto_sync.clamp_interval_hours).
+const AUTO_SYNC_CHOICES: { value: number; label: string }[] = [
+  { value: 0, label: "Off" },
+  { value: 1, label: "Hourly" },
+  { value: 6, label: "Every 6 hours" },
+  { value: 12, label: "Every 12 hours" },
+  { value: 24, label: "Daily" },
+];
+
+export function SetupPanel({
+  league,
+  leagues,
+  onLeagueChange,
+  onLeagueUpdated,
+  onLeagueRemoved,
+  onLeagueSelect,
+}: Props) {
   const [leagueId, setLeagueId] = useState(league ? String(league.espn_league_id) : "");
   const [season, setSeason] = useState(league ? String(league.season) : String(new Date().getFullYear()));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<number | null>(null);
+  const [savingAutoSyncId, setSavingAutoSyncId] = useState<number | null>(null);
+
+  async function handleAutoSyncChange(target: LeagueSummary, value: string) {
+    const hours = Number(value);
+    setError(null);
+    setSavingAutoSyncId(target.id);
+    try {
+      const updated = await api.setAutoSync(target.id, hours > 0, hours > 0 ? hours : target.auto_sync_interval_hours);
+      onLeagueUpdated(updated);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to change auto-sync.");
+    } finally {
+      setSavingAutoSyncId(null);
+    }
+  }
 
   async function handleSync() {
     setLoading(true);
@@ -87,6 +120,11 @@ export function SetupPanel({ league, leagues, onLeagueChange, onLeagueRemoved, o
       {leagues.length > 0 && (
         <>
           <h3>Your Leagues</h3>
+          <p className="hint">
+            Auto-sync re-pulls a league from ESPN in the background on the schedule you pick, so rosters,
+            projections and injuries stay current without clicking Sync League. The first run happens within a
+            few minutes of switching it on.
+          </p>
           <div className="table-scroll">
             <table>
               <thead>
@@ -94,6 +132,7 @@ export function SetupPanel({ league, leagues, onLeagueChange, onLeagueRemoved, o
                   <th>League</th>
                   <th className="num">Season</th>
                   <th>Your Team</th>
+                  <th>Auto-sync</th>
                   <th></th>
                 </tr>
               </thead>
@@ -109,6 +148,25 @@ export function SetupPanel({ league, leagues, onLeagueChange, onLeagueRemoved, o
                       </td>
                       <td className="num">{l.season}</td>
                       <td>{myTeam ? myTeam.name : <span className="hint">not set</span>}</td>
+                      <td>
+                        <select
+                          value={l.auto_sync_enabled ? l.auto_sync_interval_hours : 0}
+                          onChange={(e) => handleAutoSyncChange(l, e.target.value)}
+                          disabled={savingAutoSyncId === l.id}
+                          aria-label={`Auto-sync ${l.name}`}
+                        >
+                          {AUTO_SYNC_CHOICES.map((c) => (
+                            <option key={c.value} value={c.value}>
+                              {c.label}
+                            </option>
+                          ))}
+                        </select>
+                        {l.auto_sync_error && (
+                          <div className="error" style={{ fontSize: "0.75rem" }} title={l.auto_sync_error}>
+                            Last run failed
+                          </div>
+                        )}
+                      </td>
                       <td style={{ display: "flex", gap: "0.4rem" }}>
                         {!isActive && <button onClick={() => onLeagueSelect(l.id)}>Switch</button>}
                         <button onClick={() => handleRemove(l)} disabled={removingId === l.id}>

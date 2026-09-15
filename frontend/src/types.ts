@@ -61,6 +61,10 @@ export interface LeagueSummary {
   scoring_rules: ScoringRule[];
   my_team_id: number | null;
   synced_at: string | null;
+  auto_sync_enabled: boolean;
+  auto_sync_interval_hours: number;
+  auto_synced_at: string | null;
+  auto_sync_error: string | null;
   teams: TeamSummary[];
 }
 

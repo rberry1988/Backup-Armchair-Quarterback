@@ -9,6 +9,7 @@ interface Props {
   league: LeagueSummary | null;
   leagues: LeagueSummary[];
   onLeagueChange: (league: LeagueSummary) => void;
+  onLeagueUpdated: (league: LeagueSummary) => void;
   onLeagueRemoved: (leagueId: number) => void;
   onLeagueSelect: (leagueId: number) => void;
 }
@@ -20,6 +21,7 @@ export function SettingsTab({
   league,
   leagues,
   onLeagueChange,
+  onLeagueUpdated,
   onLeagueRemoved,
   onLeagueSelect,
 }: Props) {
@@ -29,6 +31,7 @@ export function SettingsTab({
         league={league}
         leagues={leagues}
         onLeagueChange={onLeagueChange}
+        onLeagueUpdated={onLeagueUpdated}
         onLeagueRemoved={onLeagueRemoved}
         onLeagueSelect={onLeagueSelect}
       />

@@ -105,6 +105,13 @@ class SetPremiumRequest(BaseModel):
     is_premium: bool
 
 
+class AutoSyncRequest(BaseModel):
+    enabled: bool
+    # Bounds match app/auto_sync.py's clamp; anything outside is a client
+    # bug rather than something to silently round into range.
+    interval_hours: int = Field(default=12, ge=1, le=168)
+
+
 class FantasyProsKeyRequest(BaseModel):
     # Empty/whitespace clears a previously-saved key, falling back to
     # FANTASYPROS_API_KEY in backend/.env (if set).

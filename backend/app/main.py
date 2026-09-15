@@ -1,3 +1,4 @@
+import asyncio
 from collections import defaultdict
 from contextlib import asynccontextmanager
 
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.alerts import get_roster_alerts
 from app.app_settings import fantasypros_api_key_source, set_fantasypros_api_key
+from app.auto_sync import auto_sync_loop, clamp_interval_hours
 from app.auth import (
     check_login_allowed,
     check_registration_allowed,
@@ -41,6 +43,7 @@ from app.recommendations.trades import get_trade_suggestions, grade_trade
 from app.recommendations.waivers import get_waiver_targets
 from app.schemas import (
     AdminUserOut,
+    AutoSyncRequest,
     ChangePasswordRequest,
     FantasyProsKeyRequest,
     FantasyProsKeyStatus,
@@ -63,7 +66,11 @@ from app.trends import get_player_trends
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
-    yield
+    scheduler = asyncio.create_task(auto_sync_loop())
+    try:
+        yield
+    finally:
+        scheduler.cancel()
 
 
 app = FastAPI(
@@ -335,6 +342,10 @@ def _league_summary(db: Session, league: League) -> dict:
         "scoring_rules": league.scoring_rules,
         "my_team_id": league.my_team_id,
         "synced_at": league.synced_at,
+        "auto_sync_enabled": league.auto_sync_enabled,
+        "auto_sync_interval_hours": league.auto_sync_interval_hours,
+        "auto_synced_at": league.auto_synced_at,
+        "auto_sync_error": league.auto_sync_error,
         "teams": [
             {
                 "id": t.espn_team_id,
@@ -417,6 +428,26 @@ def set_my_team(
     if team is None:
         raise HTTPException(status_code=404, detail="Team not found in this league")
     league.my_team_id = payload.team_id
+    db.commit()
+    return _league_summary(db, league)
+
+
+@app.post("/api/league/{league_id}/auto-sync")
+def set_auto_sync(
+    league_id: int,
+    payload: AutoSyncRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Turn scheduled background re-syncing on/off for one league. The
+    scheduler itself lives in app/auto_sync.py."""
+    league = _owned_league_or_404(db, league_id, current_user)
+    league.auto_sync_enabled = payload.enabled
+    league.auto_sync_interval_hours = clamp_interval_hours(payload.interval_hours)
+    if not payload.enabled:
+        # Nothing is pending any more, so a stale failure from the last run
+        # would just sit in the UI misreporting the current state.
+        league.auto_sync_error = None
     db.commit()
     return _league_summary(db, league)
 

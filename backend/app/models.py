@@ -102,6 +102,16 @@ class League(Base):
     # covers every rostered player. See app/fantasypros_client.py's
     # fetch_injury_context(); empty unless FANTASYPROS_API_KEY is set.
     fantasypros_injuries: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Scheduled background re-syncs (app/auto_sync.py). auto_synced_at is
+    # when the scheduler last *attempted* one — distinct from synced_at,
+    # which only moves on success — and doubles as the compare-and-swap
+    # field that stops both uvicorn workers syncing the same league.
+    # auto_sync_error holds the last failure so the UI can say so instead
+    # of quietly going stale.
+    auto_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_sync_interval_hours: Mapped[int] = mapped_column(Integer, default=12)
+    auto_synced_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    auto_sync_error: Mapped[str | None] = mapped_column(String, nullable=True)
 
     user: Mapped[User] = relationship(back_populates="leagues")
     teams: Mapped[list["Team"]] = relationship(back_populates="league", cascade="all, delete-orphan")

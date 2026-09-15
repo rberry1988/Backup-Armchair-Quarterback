@@ -108,6 +108,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ team_id: teamId }),
     }),
+  setAutoSync: (leagueId: number, enabled: boolean, intervalHours: number) =>
+    request<LeagueSummary>(`/api/league/${leagueId}/auto-sync`, {
+      method: "POST",
+      body: JSON.stringify({ enabled, interval_hours: intervalHours }),
+    }),
   getRoster: (leagueId: number) => request<RosterResponse>(`/api/league/${leagueId}/roster`),
   getStartSit: (leagueId: number) => request<StartSitResponse>(`/api/league/${leagueId}/start-sit`),
   getWaivers: (leagueId: number) => request<WaiverResponse>(`/api/league/${leagueId}/waivers`),

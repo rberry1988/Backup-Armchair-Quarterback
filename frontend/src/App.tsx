@@ -82,6 +82,15 @@ function App() {
     setLeague(updated);
   }
 
+  // Updates one league in place, keeping list order and whichever league is
+  // active — unlike handleLeagueChange, which deliberately promotes the
+  // league it's given and switches to it. Toggling a setting on a league
+  // you aren't currently viewing shouldn't yank you over to it.
+  function handleLeagueUpdated(updated: LeagueSummary) {
+    setLeagues((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+    setLeague((prev) => (prev && prev.id === updated.id ? updated : prev));
+  }
+
   function handleLeagueSelect(leagueId: number) {
     const found = leagues.find((l) => l.id === leagueId);
     if (found) setLeague(found);
@@ -172,6 +181,7 @@ function App() {
             league={league}
             leagues={leagues}
             onLeagueChange={handleLeagueChange}
+            onLeagueUpdated={handleLeagueUpdated}
             onLeagueRemoved={handleLeagueRemoved}
             onLeagueSelect={handleLeagueSelect}
           />
