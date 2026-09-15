@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -13,7 +14,9 @@ from app.auth import (
     create_access_token,
     get_current_user,
     hash_password,
+    is_admin,
     record_failed_login,
+    require_admin,
     verify_password,
 )
 from app.bench_points import get_bench_points
@@ -28,6 +31,7 @@ from app.recommendations.start_sit import get_start_sit
 from app.recommendations.trades import get_trade_suggestions, grade_trade
 from app.recommendations.waivers import get_waiver_targets
 from app.schemas import (
+    AdminUserOut,
     LoginRequest,
     RegisterRequest,
     SetMyTeamRequest,
@@ -95,7 +99,56 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
 @app.get("/api/auth/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
-    return {"id": current_user.id, "email": current_user.email}
+    return {"id": current_user.id, "email": current_user.email, "is_admin": is_admin(current_user)}
+
+
+# ---------------------------------------------------------------------------
+# Admin (managing other accounts on this instance — see Settings.admin_emails)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/admin/users", response_model=list[AdminUserOut])
+def admin_list_users(db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    users = db.query(User).order_by(User.created_at).all()
+    league_counts = dict(
+        db.query(League.user_id, func.count(League.id)).group_by(League.user_id).all()
+    )
+    return [
+        AdminUserOut(
+            id=u.id, email=u.email, created_at=u.created_at, league_count=league_counts.get(u.id, 0)
+        )
+        for u in users
+    ]
+
+
+@app.post("/api/admin/users", response_model=AdminUserOut, status_code=201)
+def admin_create_user(
+    payload: RegisterRequest, db: Session = Depends(get_db), _admin: User = Depends(require_admin)
+):
+    user = User(email=payload.email.lower(), hashed_password=hash_password(payload.password))
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="An account with that email already exists") from exc
+    db.refresh(user)
+    return AdminUserOut(id=user.id, email=user.email, created_at=user.created_at, league_count=0)
+
+
+@app.delete("/api/admin/users/{user_id}", status_code=204)
+def admin_delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="You can't remove your own account")
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(user)  # cascades to their leagues (see User.leagues relationship)
+    db.commit()
 
 
 # ---------------------------------------------------------------------------

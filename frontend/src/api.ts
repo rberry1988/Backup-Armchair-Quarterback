@@ -1,4 +1,5 @@
 import type {
+  AdminUser,
   AlertsResponse,
   BenchPointsResponse,
   ChangesResponse,
@@ -58,6 +59,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       : body.detail || `Request failed: ${res.status}`;
     throw new ApiError(message, res.status);
   }
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 
@@ -117,4 +119,13 @@ export const api = {
   getScheduleOutlook: (leagueId: number) =>
     request<ScheduleOutlookResponse>(`/api/league/${leagueId}/schedule-outlook`),
   getBenchPoints: (leagueId: number) => request<BenchPointsResponse>(`/api/league/${leagueId}/bench-points`),
+
+  adminListUsers: () => request<AdminUser[]>("/api/admin/users"),
+  adminCreateUser: (email: string, password: string) =>
+    request<AdminUser>("/api/admin/users", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
+  adminDeleteUser: (userId: number) =>
+    request<void>(`/api/admin/users/${userId}`, { method: "DELETE" }),
 };

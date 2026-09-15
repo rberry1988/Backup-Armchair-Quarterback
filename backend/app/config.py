@@ -29,12 +29,22 @@ class Settings(BaseSettings):
     # this app is usually reachable by anyone on the LAN, and there's no
     # reason to publish the full API surface to them.
     enable_api_docs: bool = False
+    # Comma-separated emails allowed to use the Admin tab (add/remove other
+    # accounts). Deliberately config-driven rather than a DB column: an
+    # admin flag stored in the database would need someone to already be an
+    # admin to set it on the first account, which is a bootstrapping problem
+    # this sidesteps entirely — you just list your own email here.
+    admin_emails: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def admin_email_list(self) -> set[str]:
+        return {email.strip().lower() for email in self.admin_emails.split(",") if email.strip()}
 
 
 settings = Settings()

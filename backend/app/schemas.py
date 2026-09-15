@@ -1,3 +1,5 @@
+import datetime
+
 from pydantic import BaseModel, EmailStr, field_validator
 
 
@@ -42,3 +44,11 @@ class TokenResponse(BaseModel):
 class UserOut(BaseModel):
     id: int
     email: str
+    is_admin: bool = False
+
+
+class AdminUserOut(BaseModel):
+    id: int
+    email: str
+    created_at: datetime.datetime
+    league_count: int

@@ -13,6 +13,7 @@ import { HandcuffsTab } from "./components/HandcuffsTab";
 import { AlertsTab } from "./components/AlertsTab";
 import { ScheduleTab } from "./components/ScheduleTab";
 import { BenchPointsTab } from "./components/BenchPointsTab";
+import { AdminTab } from "./components/AdminTab";
 import { api, clearToken, getToken } from "./api";
 import { formatRelativeTime } from "./relativeTime";
 import type { LeagueSummary, User } from "./types";
@@ -29,9 +30,13 @@ type Tab =
   | "expert-rankings"
   | "depth-charts"
   | "handcuffs"
-  | "bench-points";
+  | "bench-points"
+  | "admin";
 
-const TABS: { id: Tab; label: string }[] = [
+// Tabs that don't need a synced league selected to be usable.
+const NO_LEAGUE_REQUIRED: Tab[] = ["setup", "admin"];
+
+const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "setup", label: "Setup" },
   { id: "alerts", label: "Alerts" },
   { id: "roster", label: "Roster" },
@@ -94,6 +99,7 @@ function App() {
   }
 
   const canViewTeamTabs = league?.my_team_id != null;
+  const tabs = user.is_admin ? [...BASE_TABS, { id: "admin" as const, label: "Admin" }] : BASE_TABS;
 
   return (
     <div className="app">
@@ -114,12 +120,12 @@ function App() {
       </header>
 
       <nav className="tabs">
-        {TABS.map(({ id, label }) => (
+        {tabs.map(({ id, label }) => (
           <button
             key={id}
             className={tab === id ? "active" : ""}
             onClick={() => setTab(id)}
-            disabled={id !== "setup" && !canViewTeamTabs}
+            disabled={!NO_LEAGUE_REQUIRED.includes(id) && !canViewTeamTabs}
           >
             {label}
           </button>
@@ -141,6 +147,7 @@ function App() {
         {tab === "alerts" && league && <AlertsTab leagueId={league.id} />}
         {tab === "schedule" && league && <ScheduleTab leagueId={league.id} />}
         {tab === "bench-points" && league && <BenchPointsTab leagueId={league.id} />}
+        {tab === "admin" && user.is_admin && <AdminTab currentUserId={user.id} />}
       </main>
     </div>
   );

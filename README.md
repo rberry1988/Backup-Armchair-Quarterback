@@ -59,6 +59,10 @@ account and their synced league(s), team selection, and recommendations
 are private to them, even if two people happen to sync the same ESPN
 league.
 
+If you'd rather add your teammates yourself instead of everyone
+self-registering, set `ADMIN_EMAILS` (see below) to get an **Admin** tab
+for adding and removing accounts.
+
 ## Architecture
 
 - `backend/` — FastAPI + SQLite. Handles user accounts (email/password,
@@ -189,6 +193,28 @@ service with the new code at the end.
 Each teammate in your league can register their own account on the same
 running instance and pick their own team — nobody sees anyone else's
 selections or synced data.
+
+## Admin: adding and removing accounts
+
+Set `ADMIN_EMAILS` in `backend/.env` (comma-separated, case-insensitive) to
+get an **Admin** tab, visible only to those accounts, for managing who else
+can use this instance — an alternative to everyone self-registering.
+
+- **Add a person**: enter an email and a password (8+ characters) and share
+  it with them directly — there's no invite email or password-reset flow,
+  so pick something you're comfortable telling them and let them change it
+  themselves later if you add that capability.
+- **Remove a person**: deletes their account and everything scoped to it
+  (synced leagues, team selection) — it doesn't touch anyone else's data.
+  You can't remove your own account this way.
+- Admin status isn't stored in the database — it's just whether your email
+  is in `ADMIN_EMAILS`, the same way every other setting in `backend/.env`
+  works. That sidesteps needing an existing admin to promote the first one.
+  Like any `.env` change, restart the backend (`sudo systemctl restart
+  backup-armchair-quarterback` on the standard deployment) for a change to
+  `ADMIN_EMAILS` to take effect. Public self-registration
+  (`/api/auth/register`) still works alongside this unless you also take it
+  out of the login page yourself.
 
 ## Notes and limitations
 
