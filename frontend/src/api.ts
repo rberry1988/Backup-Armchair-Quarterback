@@ -5,6 +5,7 @@ import type {
   ChangesResponse,
   DepthChartsResponse,
   ExpertRankingsResponse,
+  FantasyProsKeyStatus,
   HandcuffsResponse,
   ScheduleOutlookResponse,
   LeagueSummary,
@@ -150,6 +151,12 @@ export const api = {
     request<AdminUser>(`/api/admin/users/${userId}/admin`, {
       method: "POST",
       body: JSON.stringify({ is_admin: isAdmin }),
+    }),
+  adminGetFantasyProsKeyStatus: () => request<FantasyProsKeyStatus>("/api/admin/fantasypros-key"),
+  adminSetFantasyProsKey: (apiKey: string) =>
+    request<FantasyProsKeyStatus>("/api/admin/fantasypros-key", {
+      method: "POST",
+      body: JSON.stringify({ api_key: apiKey }),
     }),
   adminUpdate: () => request<UpdateResult>("/api/admin/update", { method: "POST" }),
 };

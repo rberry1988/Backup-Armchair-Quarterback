@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.alerts import get_roster_alerts
+from app.app_settings import fantasypros_api_key_source, set_fantasypros_api_key
 from app.auth import (
     check_login_allowed,
     clear_failed_logins,
@@ -35,6 +36,8 @@ from app.recommendations.waivers import get_waiver_targets
 from app.schemas import (
     AdminUserOut,
     ChangePasswordRequest,
+    FantasyProsKeyRequest,
+    FantasyProsKeyStatus,
     LoginRequest,
     RegisterRequest,
     ResetPasswordRequest,
@@ -216,6 +219,25 @@ def admin_set_admin(
     db.refresh(user)
     league_count = db.query(func.count(League.id)).filter(League.user_id == user.id).scalar() or 0
     return _admin_user_out(user, league_count)
+
+
+@app.get("/api/admin/fantasypros-key", response_model=FantasyProsKeyStatus)
+def get_fantasypros_key_status(db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    source = fantasypros_api_key_source(db)
+    return FantasyProsKeyStatus(configured=source is not None, source=source)
+
+
+@app.post("/api/admin/fantasypros-key", response_model=FantasyProsKeyStatus)
+def set_fantasypros_key(
+    payload: FantasyProsKeyRequest, db: Session = Depends(get_db), _admin: User = Depends(require_admin)
+):
+    """Saves the Expert Rankings API key for next sync onward (takes
+    effect immediately, no restart) — or clears it, falling back to
+    FANTASYPROS_API_KEY in backend/.env if that's set. Never echoes the
+    key back; see FantasyProsKeyStatus."""
+    set_fantasypros_api_key(db, payload.api_key)
+    source = fantasypros_api_key_source(db)
+    return FantasyProsKeyStatus(configured=source is not None, source=source)
 
 
 @app.post("/api/admin/update")

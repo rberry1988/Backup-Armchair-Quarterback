@@ -2,11 +2,13 @@
 crowd" signal neither ESPN nor nflverse provide (they're all stats-based;
 this is a poll of real fantasy analysts).
 
-Requires FANTASYPROS_API_KEY (config.settings.fantasypros_api_key). A free
-API key hard-caps every query at the top 10 results regardless of
-filters — confirmed against the live API, not documented anywhere — so
-this is only useful for elite/startable players, not full-roster or
-waiver-wire coverage. See README for the scoped feature this powers.
+Requires an API key (backend/.env's FANTASYPROS_API_KEY, or one saved
+from the Admin tab — see app/app_settings.py, which resolves the
+effective key callers pass in here). A free API key hard-caps every
+query at the top 10 results regardless of filters — confirmed against
+the live API, not documented anywhere — so this is only useful for
+elite/startable players, not full-roster or waiver-wire coverage. See
+README for the scoped feature this powers.
 
 Everything here is best-effort like the other external data sources: no
 key, or any request failure, returns an empty result rather than raising.
@@ -21,8 +23,6 @@ import tempfile
 import time
 
 import httpx
-
-from app.config import settings
 
 BASE_URL = "https://api.fantasypros.com/public/v2/json/nfl/{season}/{endpoint}"
 RANKING_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"]
@@ -50,8 +50,8 @@ def _cache_path(cache_key: str) -> str:
     return os.path.join(CACHE_DIR, f"{cache_key}.json")
 
 
-def _cached_get(endpoint: str, params: dict, cache_key: str) -> dict | None:
-    if not settings.fantasypros_api_key:
+def _cached_get(endpoint: str, params: dict, cache_key: str, api_key: str | None) -> dict | None:
+    if not api_key:
         return None
 
     path = _cache_path(cache_key)
@@ -65,7 +65,7 @@ def _cached_get(endpoint: str, params: dict, cache_key: str) -> dict | None:
     url = BASE_URL.format(season=params.pop("season"), endpoint=endpoint)
     try:
         with httpx.Client(timeout=15.0) as client:
-            resp = client.get(url, params=params, headers={"x-api-key": settings.fantasypros_api_key})
+            resp = client.get(url, params=params, headers={"x-api-key": api_key})
         resp.raise_for_status()
         data = resp.json()
     except (httpx.HTTPError, ValueError):
@@ -108,7 +108,9 @@ def _trim_player(raw: dict) -> dict:
     }
 
 
-def fetch_consensus_rankings(season: int, position: str, ranking_type: str, scoring: str, week: int | None = None) -> list[dict]:
+def fetch_consensus_rankings(
+    season: int, position: str, ranking_type: str, scoring: str, api_key: str | None, week: int | None = None
+) -> list[dict]:
     """One query against FantasyPros' consensus-rankings endpoint.
     `ranking_type` is "ROS" or "weekly". `position` is "ALL" or one of
     RANKING_POSITIONS. Returns [] if unavailable for any reason (no key,
@@ -117,14 +119,14 @@ def fetch_consensus_rankings(season: int, position: str, ranking_type: str, scor
     if week is not None:
         params["week"] = week
     cache_key = f"rankings_{season}_{ranking_type}_{position}_{scoring}_{week or 0}"
-    data = _cached_get("consensus-rankings", params, cache_key)
+    data = _cached_get("consensus-rankings", params, cache_key, api_key)
     if not data:
         return []
     return [_trim_player(p) for p in data.get("players", [])]
 
 
 def fetch_expert_rankings_bundle(
-    season: int, week: int, scoring: str, crosswalk: dict[int, dict[str, str]]
+    season: int, week: int, scoring: str, crosswalk: dict[int, dict[str, str]], api_key: str | None
 ) -> dict:
     """Top-10 overall + top-10 per position, for both rest-of-season and
     this week, with espn_player_id filled in wherever the dynastyprocess
@@ -132,7 +134,7 @@ def fetch_expert_rankings_bundle(
     their espn_player_id stays None; the reference panel still shows them
     by team name, they just can't be joined onto our Player rows).
     """
-    if not settings.fantasypros_api_key:
+    if not api_key:
         return {}
 
     fpid_to_espn_id = {
@@ -148,9 +150,13 @@ def fetch_expert_rankings_bundle(
         return players
 
     def fetch_all_positions(ranking_type: str, week_param: int | None) -> dict:
-        bundle = {"overall": with_espn_ids(fetch_consensus_rankings(season, "ALL", ranking_type, scoring, week_param))}
+        bundle = {
+            "overall": with_espn_ids(fetch_consensus_rankings(season, "ALL", ranking_type, scoring, api_key, week_param))
+        }
         for position in RANKING_POSITIONS:
-            bundle[position] = with_espn_ids(fetch_consensus_rankings(season, position, ranking_type, scoring, week_param))
+            bundle[position] = with_espn_ids(
+                fetch_consensus_rankings(season, position, ranking_type, scoring, api_key, week_param)
+            )
         return bundle
 
     ros = fetch_all_positions("ROS", None)

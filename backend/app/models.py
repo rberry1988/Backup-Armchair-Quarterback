@@ -181,3 +181,16 @@ class RosterEntry(Base):
 
     team: Mapped[Team] = relationship(back_populates="roster_entries")
     player: Mapped[Player] = relationship(back_populates="roster_entries")
+
+
+class AppSetting(Base):
+    """Generic instance-wide key/value store for settings an admin can
+    change from the Admin tab at runtime, without editing backend/.env or
+    restarting the process — see app/app_settings.py. Starts with just the
+    FantasyPros API key; a small table rather than a dedicated column per
+    setting since this is expected to grow."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[str] = mapped_column(String)

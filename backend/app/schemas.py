@@ -82,3 +82,15 @@ class AdminUserOut(BaseModel):
 
 class SetAdminRequest(BaseModel):
     is_admin: bool
+
+
+class FantasyProsKeyRequest(BaseModel):
+    # Empty/whitespace clears a previously-saved key, falling back to
+    # FANTASYPROS_API_KEY in backend/.env (if set).
+    api_key: str
+
+
+class FantasyProsKeyStatus(BaseModel):
+    configured: bool
+    # "database" (saved from this tab), "config" (backend/.env), or None.
+    source: str | None = None

@@ -10,6 +10,7 @@ from app.advanced_stats import (
     index_snaps_by_pfr,
     index_weekly_by_gsis,
 )
+from app.app_settings import get_fantasypros_api_key
 from app.espn_client import ESPNClient, compute_bye_weeks, fetch_season_schedule, fetch_week_schedule
 from app.espn_constants import is_bench_slot, lineup_slot_label, position_from_id
 from app.fantasypros_client import fetch_expert_rankings_bundle, infer_scoring_format
@@ -262,12 +263,13 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
         league.points_allowed_by_position = compute_points_allowed_by_position(weekly_stats_rows, through_week=week)
 
     # FantasyPros expert consensus rankings (top 10 overall + per position,
-    # rest-of-season + this week) — optional, only if FANTASYPROS_API_KEY
-    # is configured; fetch_expert_rankings_bundle() returns {} on any
-    # failure, in which case we leave whatever was synced last time alone
-    # rather than clobbering it with an empty result.
+    # rest-of-season + this week) — optional, only if a key is configured
+    # (backend/.env or the Admin tab, see app_settings.get_fantasypros_api_key);
+    # fetch_expert_rankings_bundle() returns {} on any failure, in which
+    # case we leave whatever was synced last time alone rather than
+    # clobbering it with an empty result.
     new_expert_rankings = fetch_expert_rankings_bundle(
-        season, week, infer_scoring_format(scoring_rules), crosswalk
+        season, week, infer_scoring_format(scoring_rules), crosswalk, get_fantasypros_api_key(db)
     )
     if new_expert_rankings:
         league.expert_rankings = new_expert_rankings

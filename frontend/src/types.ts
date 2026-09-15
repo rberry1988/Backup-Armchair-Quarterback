@@ -30,6 +30,11 @@ export interface AdminUser {
   admin_locked: boolean;
 }
 
+export interface FantasyProsKeyStatus {
+  configured: boolean;
+  source: "database" | "config" | null;
+}
+
 export interface UpdateStep {
   command: string;
   ok: boolean;

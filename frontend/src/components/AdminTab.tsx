@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import type { AdminUser, UpdateResult } from "../types";
+import type { AdminUser, FantasyProsKeyStatus, UpdateResult } from "../types";
 import { ApiError, api } from "../api";
 
 const POLL_INTERVAL_MS = 2000;
@@ -24,6 +24,12 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
   const [updateState, setUpdateState] = useState<"idle" | "updating" | "restarting" | "done" | "timed-out">("idle");
   const [updateResult, setUpdateResult] = useState<UpdateResult | null>(null);
 
+  const [fpKeyStatus, setFpKeyStatus] = useState<FantasyProsKeyStatus | null>(null);
+  const [fpKeyInput, setFpKeyInput] = useState("");
+  const [fpKeySaving, setFpKeySaving] = useState(false);
+  const [fpKeyError, setFpKeyError] = useState<string | null>(null);
+  const [fpKeySaved, setFpKeySaved] = useState(false);
+
   // pollUntilBackUp's recursive setTimeout chain outlives this component if
   // the admin navigates to another tab while "Restarting..." is showing
   // (AdminTab unmounts entirely — see App.tsx). Without these guards it
@@ -47,6 +53,54 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
   }
 
   useEffect(load, []);
+
+  useEffect(() => {
+    let ignore = false;
+    api
+      .adminGetFantasyProsKeyStatus()
+      .then((status) => {
+        if (!ignore) setFpKeyStatus(status);
+      })
+      .catch(() => {
+        // Non-critical status display -- leave it blank rather than
+        // showing an error banner over the rest of the Admin tab.
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  async function handleSaveFantasyProsKey(e: React.FormEvent) {
+    e.preventDefault();
+    setFpKeyError(null);
+    setFpKeySaved(false);
+    setFpKeySaving(true);
+    try {
+      const status = await api.adminSetFantasyProsKey(fpKeyInput);
+      setFpKeyStatus(status);
+      setFpKeyInput("");
+      setFpKeySaved(true);
+    } catch (err) {
+      setFpKeyError(err instanceof ApiError ? err.message : "Failed to save the API key.");
+    } finally {
+      setFpKeySaving(false);
+    }
+  }
+
+  async function handleClearFantasyProsKey() {
+    if (!window.confirm("Clear the saved Expert Rankings API key?")) return;
+    setFpKeyError(null);
+    setFpKeySaved(false);
+    setFpKeySaving(true);
+    try {
+      const status = await api.adminSetFantasyProsKey("");
+      setFpKeyStatus(status);
+    } catch (err) {
+      setFpKeyError(err instanceof ApiError ? err.message : "Failed to clear the API key.");
+    } finally {
+      setFpKeySaving(false);
+    }
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -293,6 +347,49 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
         </div>
       )}
     </div>
+
+      <div className="panel" style={{ marginTop: "1.25rem" }}>
+        <h2>Expert Rankings API Key</h2>
+        <p className="hint">
+          Powers the Expert Rankings tab and Trade Grader's expert-consensus context. Get a free key at{" "}
+          <a href="https://www.fantasypros.com/api/" target="_blank" rel="noreferrer">
+            fantasypros.com/api
+          </a>
+          . A free-tier key hard-caps every query at the top 10 results, so this only ever covers elite/startable
+          players &mdash; everything else works fine without it.
+        </p>
+        <p className="hint">
+          {fpKeyStatus === null
+            ? "Loading..."
+            : fpKeyStatus.configured
+              ? fpKeyStatus.source === "config"
+                ? "Currently set via FANTASYPROS_API_KEY in backend/.env."
+                : "Currently set (saved from this tab)."
+              : "Not set — Expert Rankings and Trade Grader's expert context are unavailable."}
+        </p>
+        <form onSubmit={handleSaveFantasyProsKey} className="form-row">
+          <label>
+            API Key
+            <input
+              type="text"
+              required
+              value={fpKeyInput}
+              onChange={(e) => setFpKeyInput(e.target.value)}
+              placeholder="paste your FantasyPros API key"
+            />
+          </label>
+          <button type="submit" disabled={fpKeySaving}>
+            {fpKeySaving ? "Saving..." : "Save"}
+          </button>
+          {fpKeyStatus?.source === "database" && (
+            <button type="button" onClick={handleClearFantasyProsKey} disabled={fpKeySaving}>
+              Clear
+            </button>
+          )}
+        </form>
+        {fpKeyError && <p className="error">{fpKeyError}</p>}
+        {fpKeySaved && <p className="success">Saved &mdash; takes effect on the next league sync.</p>}
+      </div>
 
       <div className="panel" style={{ marginTop: "1.25rem" }}>
         <h2>Update</h2>
