@@ -179,13 +179,17 @@ journalctl -u backup-armchair-quarterback -f        # live logs
 
 **Notes:**
 
-- The script installs Python 3.12 (falling back to 3.11, then whatever
-  `python3` the OS ships) for the backend's virtualenv specifically,
-  rather than trusting the OS default — a very new default Python (3.14+
-  on a sufficiently recent distro) can predate prebuilt wheels for some
-  pinned dependency, which makes `pip install` try to compile it from
-  source and fail with a Rust/C toolchain error. If you hit that on an
-  older checkout of this script, `git pull` and re-run
+- The script installs Python 3.12 (falling back to 3.11) via apt for the
+  backend's virtualenv specifically, rather than trusting the OS
+  default — a very new default Python (3.14+ on a sufficiently recent
+  distro) can predate prebuilt wheels for some pinned dependency, and
+  `pydantic-core`'s build tooling refuses outright to compile against
+  anything past 3.13, even with a working Rust/C toolchain. If the OS's
+  own apt repos don't carry python3.12 or python3.11 at all (seen on a
+  very recent/unusual release), it fetches a portable Python 3.12 via
+  [uv](https://docs.astral.sh/uv/) instead, which doesn't depend on
+  what the OS packages. If you hit a wheel-build error on an older
+  checkout of this script, `git pull` and re-run
   `sudo bash deploy/install.sh`: it detects a venv built on the wrong
   Python version and rebuilds it automatically.
 - If your existing install predates this script deploying via git clone

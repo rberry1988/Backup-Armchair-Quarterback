@@ -26,15 +26,16 @@ SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "==> Installing system packages (node, nginx)"
 apt-get update -qq
-apt-get install -y -qq nodejs npm nginx
+apt-get install -y -qq nodejs npm nginx curl ca-certificates
 
 # Pin the backend to a specific Python version rather than trusting
 # whatever `python3` the OS happens to default to. A brand-new default
 # (e.g. 3.14 on a very recent distro) can predate prebuilt wheels for
-# some of our pinned dependencies — pip then falls back to compiling
-# from source, which needs a Rust/C toolchain this script doesn't
-# install, and fails. 3.12 and 3.11 both have full wheel coverage for
-# everything in requirements.txt; the OS's own python3 is the last resort.
+# some of our pinned dependencies, and pydantic-core's build tooling
+# (pyo3) outright refuses to compile against a Python newer than 3.13
+# even with a working Rust toolchain on hand — confirmed against a real
+# 3.14-only host. 3.12 and 3.11 both have full wheel coverage for
+# everything in requirements.txt.
 PYTHON_BIN=""
 for candidate in python3.12 python3.11; do
     if apt-get install -y -qq "$candidate" "${candidate}-venv" 2>/dev/null; then
@@ -43,20 +44,9 @@ for candidate in python3.12 python3.11; do
     fi
 done
 if [ -z "$PYTHON_BIN" ]; then
-    echo "    Neither python3.12 nor python3.11 available from apt; falling back to python3"
-    apt-get install -y -qq python3 python3-venv python3-pip
-    PYTHON_BIN=python3
-    # This is exactly the case the comment above warns about: the OS's own
-    # python3 may be too new for prebuilt wheels of our pinned deps
-    # (pydantic-core in particular). pip then tries to compile it, which
-    # needs Rust — installing a real toolchain via apt here means pip finds
-    # it on PATH and uses it directly, instead of falling back to its own
-    # in-process Rust downloader (which stages files under $HOME/.cache and
-    # has been seen to crash outright if that directory doesn't exist yet).
-    echo "    Also installing a Rust toolchain in case any dependency needs to compile from source"
-    apt-get install -y -qq rustc cargo
+    echo "    Neither python3.12 nor python3.11 available from apt; will fetch a portable"
+    echo "    Python 3.12 via uv once the service user/directory exist below"
 fi
-echo "    Using $PYTHON_BIN for the backend virtualenv"
 
 echo "==> Creating service user ($APP_USER)"
 if ! id "$APP_USER" &>/dev/null; then
@@ -112,6 +102,20 @@ fi
 
 echo "==> Setting ownership"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+
+if [ -z "$PYTHON_BIN" ]; then
+    echo "==> Fetching a portable Python 3.12 via uv (apt had neither python3.12 nor python3.11)"
+    # uv (astral.sh) ships prebuilt CPython builds independent of whatever
+    # this OS's own package repos carry — the only reliable option on a
+    # release that doesn't package an older Python at all. Run as
+    # $APP_USER (whose $HOME is $APP_DIR, already owned by it) rather than
+    # root, so the venv step right below — which also runs as $APP_USER —
+    # can actually read and execute the interpreter uv installs.
+    sudo -u "$APP_USER" bash -c "curl -LsSf https://astral.sh/uv/install.sh | sh"
+    sudo -u "$APP_USER" "$APP_DIR/.local/bin/uv" python install 3.12
+    PYTHON_BIN="$(sudo -u "$APP_USER" "$APP_DIR/.local/bin/uv" python find 3.12)"
+fi
+echo "    Using $PYTHON_BIN for the backend virtualenv"
 
 echo "==> Setting up backend virtualenv"
 if [ -d "$APP_DIR/backend/.venv" ]; then
