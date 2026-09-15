@@ -32,8 +32,10 @@ export function WaiversTab({ leagueId }: { leagueId: number }) {
     <div className="panel">
       <h2>Waiver Wire Targets</h2>
       <p className="hint">
-        Suggested FAAB bid is a starting point (% of a 100-point budget), scaled by how much the pickup projects to
-        add over your weakest rostered player at that position. Ignore it if your league uses waiver priority
+        Net Gain factors in more than this week's projection — a rising usage trend or a favorable matchup nudges a
+        player up, a falling trend or tough matchup nudges them down, so a trending sleeper can outrank a bigger name
+        with a flatter outlook. Suggested FAAB bid is a starting point (% of a 100-point budget), scaled off that same
+        net gain over your weakest rostered player at the position. Ignore it if your league uses waiver priority
         instead of FAAB.
       </p>
       {data.recommendations.map((rec) => (
