@@ -179,8 +179,10 @@ function App() {
           <SettingsTab
             email={user.email}
             league={league}
+            leagues={leagues}
             onLeagueChange={handleLeagueChange}
             onLeagueRemoved={handleLeagueRemoved}
+            onLeagueSelect={handleLeagueSelect}
           />
         )}
         {tab === "roster" && league && <RosterTab leagueId={league.id} />}

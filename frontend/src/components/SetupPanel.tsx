@@ -4,16 +4,18 @@ import { ApiError, api } from "../api";
 
 interface Props {
   league: LeagueSummary | null;
+  leagues: LeagueSummary[];
   onLeagueChange: (league: LeagueSummary) => void;
   onLeagueRemoved: (leagueId: number) => void;
+  onLeagueSelect: (leagueId: number) => void;
 }
 
-export function SetupPanel({ league, onLeagueChange, onLeagueRemoved }: Props) {
+export function SetupPanel({ league, leagues, onLeagueChange, onLeagueRemoved, onLeagueSelect }: Props) {
   const [leagueId, setLeagueId] = useState(league ? String(league.espn_league_id) : "");
   const [season, setSeason] = useState(league ? String(league.season) : String(new Date().getFullYear()));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [removing, setRemoving] = useState(false);
+  const [removingId, setRemovingId] = useState<number | null>(null);
 
   async function handleSync() {
     setLoading(true);
@@ -41,23 +43,22 @@ export function SetupPanel({ league, onLeagueChange, onLeagueRemoved }: Props) {
     }
   }
 
-  async function handleRemove() {
-    if (!league) return;
+  async function handleRemove(target: LeagueSummary) {
     if (
       !window.confirm(
-        `Remove ${league.name}? This deletes your synced roster/stat history for it. You can re-sync it later, but it starts over from scratch.`
+        `Remove ${target.name}? This deletes your synced roster/stat history for it. You can re-sync it later, but it starts over from scratch.`
       )
     )
       return;
     setError(null);
-    setRemoving(true);
+    setRemovingId(target.id);
     try {
-      await api.deleteLeague(league.id);
-      onLeagueRemoved(league.id);
+      await api.deleteLeague(target.id);
+      onLeagueRemoved(target.id);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to remove league.");
     } finally {
-      setRemoving(false);
+      setRemovingId(null);
     }
   }
 
@@ -83,18 +84,50 @@ export function SetupPanel({ league, onLeagueChange, onLeagueRemoved }: Props) {
         Only public leagues are supported out of the box.
       </p>
 
+      {leagues.length > 0 && (
+        <>
+          <h3>Your Leagues</h3>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>League</th>
+                  <th className="num">Season</th>
+                  <th>Your Team</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {leagues.map((l) => {
+                  const isActive = l.id === league?.id;
+                  const myTeam = l.teams.find((t) => t.id === l.my_team_id);
+                  return (
+                    <tr key={l.id}>
+                      <td>
+                        {l.name}
+                        {isActive && <span className="hint"> (active)</span>}
+                      </td>
+                      <td className="num">{l.season}</td>
+                      <td>{myTeam ? myTeam.name : <span className="hint">not set</span>}</td>
+                      <td style={{ display: "flex", gap: "0.4rem" }}>
+                        {!isActive && <button onClick={() => onLeagueSelect(l.id)}>Switch</button>}
+                        <button onClick={() => handleRemove(l)} disabled={removingId === l.id}>
+                          {removingId === l.id ? "Removing..." : "Remove"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
       {league && (
         <>
-          <h3 style={{ display: "flex", alignItems: "baseline", gap: "0.6rem" }}>
+          <h3>
             {league.name} &mdash; Week {league.current_week}
-            <button
-              type="button"
-              onClick={handleRemove}
-              disabled={removing}
-              style={{ marginLeft: "auto", fontSize: "0.8rem" }}
-            >
-              {removing ? "Removing..." : "Remove League"}
-            </button>
           </h3>
           <label className="team-picker">
             Your team:
