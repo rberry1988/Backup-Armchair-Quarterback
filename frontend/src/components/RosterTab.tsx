@@ -107,7 +107,7 @@ export function RosterTab({ leagueId }: { leagueId: number }) {
                   <PositionTag position={p.position} />
                 </td>
                 <td>
-                  <InjuryBadge status={p.injury_status} />
+                  <InjuryBadge status={p.injury_status} fpInjury={p.fp_injury} />
                 </td>
                 <td>
                   <TrendTag trend={p.trend} />

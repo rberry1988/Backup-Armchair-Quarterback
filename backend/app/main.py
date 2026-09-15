@@ -30,6 +30,7 @@ from app.deploy_service import run_update
 from app.depth_charts import compute_depth_charts, get_rb_handcuffs
 from app.espn_client import ESPNClientError
 from app.fantasycalc_client import get_trade_value
+from app.fantasypros_client import get_injury_context
 from app.models import League, RosterEntry, Team, User
 from app.schedule_outlook import get_schedule_outlook
 from app.recommendations.start_sit import get_start_sit
@@ -440,6 +441,7 @@ def get_roster(league_id: int, db: Session = Depends(get_db), current_user: User
                 "trend": trends.get(e.player.espn_player_id),
                 "consistency": consistency.get(e.player.espn_player_id),
                 "fantasycalc": get_trade_value(league.fantasycalc_values, e.player.espn_player_id),
+                "fp_injury": get_injury_context(league.fantasypros_injuries, e.player.espn_player_id),
             }
             for e in entries
         ],

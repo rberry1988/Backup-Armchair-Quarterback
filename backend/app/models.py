@@ -95,6 +95,13 @@ class League(Base):
     # Free API, no key needed; empty only if FantasyCalc was unreachable at
     # sync time.
     fantasycalc_values: Mapped[dict] = mapped_column(JSON, default=dict)
+    # FantasyPros full-league injury report for the current week —
+    # {str(espn_player_id): {status, injury_type, comment,
+    # probability_of_playing, practice_report, updated_at}}. Unlike
+    # expert_rankings, not capped at the top 10 by a free key, so this
+    # covers every rostered player. See app/fantasypros_client.py's
+    # fetch_injury_context(); empty unless FANTASYPROS_API_KEY is set.
+    fantasypros_injuries: Mapped[dict] = mapped_column(JSON, default=dict)
 
     user: Mapped[User] = relationship(back_populates="leagues")
     teams: Mapped[list["Team"]] = relationship(back_populates="league", cascade="all, delete-orphan")

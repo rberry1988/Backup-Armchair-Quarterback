@@ -14,7 +14,7 @@ from app.app_settings import get_fantasypros_api_key
 from app.espn_client import ESPNClient, compute_bye_weeks, fetch_season_schedule, fetch_week_schedule
 from app.espn_constants import is_bench_slot, lineup_slot_label, position_from_id
 from app.fantasycalc_client import fetch_player_values, num_qbs_from_roster_slots, ppr_from_scoring_rules
-from app.fantasypros_client import fetch_expert_rankings_bundle, infer_scoring_format
+from app.fantasypros_client import fetch_expert_rankings_bundle, fetch_injury_context, infer_scoring_format
 from app.models import League, Player, PlayerWeekStat, RosterEntry, Team
 from app.nflverse_client import fetch_id_crosswalk, fetch_snap_counts, fetch_weekly_player_stats
 from app.scoring import all_weekly_data, build_scoring_rules, extract_player_core
@@ -274,6 +274,14 @@ def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> 
     )
     if new_expert_rankings:
         league.expert_rankings = new_expert_rankings
+
+    # FantasyPros full-league injury report — same API key as expert
+    # rankings, but not top-10-capped, so this covers every rostered
+    # player rather than just elite ones. Best-effort like the rankings
+    # fetch above: leave last sync's data alone on an empty result.
+    new_fantasypros_injuries = fetch_injury_context(season, week, crosswalk, get_fantasypros_api_key(db))
+    if new_fantasypros_injuries:
+        league.fantasypros_injuries = {str(pid): injury for pid, injury in new_fantasypros_injuries.items()}
 
     # FantasyCalc market trade values, scaled to this league's actual format
     # — free API, no key needed, but still best-effort: fetch_player_values()

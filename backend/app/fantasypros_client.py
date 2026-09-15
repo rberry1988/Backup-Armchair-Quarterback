@@ -1,13 +1,17 @@
-"""FantasyPros expert consensus rankings (ECR) — the "wisdom of the
+"""FantasyPros data: expert consensus rankings (ECR) — the "wisdom of the
 crowd" signal neither ESPN nor nflverse provide (they're all stats-based;
-this is a poll of real fantasy analysts).
+this is a poll of real fantasy analysts) — and full-league injury reports
+with practice-participation history and a plain-English analyst comment,
+which ESPN's sync only gives us as a single status string.
 
 Requires an API key (backend/.env's FANTASYPROS_API_KEY, or one saved
 from the Admin tab — see app/app_settings.py, which resolves the
 effective key callers pass in here). A free API key hard-caps every
-query at the top 10 results regardless of filters — confirmed against
-the live API, not documented anywhere — so this is only useful for
-elite/startable players, not full-roster or waiver-wire coverage. See
+consensus-rankings query at the top 10 results regardless of filters —
+confirmed against the live API, not documented anywhere — so that
+endpoint is only useful for elite/startable players, not full-roster or
+waiver-wire coverage. The injuries endpoint has no such cap (confirmed
+against the live API/spec), so it covers every rostered player. See
 README for the scoped feature this powers.
 
 Everything here is best-effort like the other external data sources: no
@@ -25,6 +29,7 @@ import time
 import httpx
 
 BASE_URL = "https://api.fantasypros.com/public/v2/json/nfl/{season}/{endpoint}"
+INJURIES_URL = "https://api.fantasypros.com/public/v2/json/nfl/injuries"
 RANKING_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DST"]
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "fantasypros_cache")
@@ -50,7 +55,7 @@ def _cache_path(cache_key: str) -> str:
     return os.path.join(CACHE_DIR, f"{cache_key}.json")
 
 
-def _cached_get(endpoint: str, params: dict, cache_key: str, api_key: str | None) -> dict | None:
+def _cached_get_url(url: str, params: dict, cache_key: str, api_key: str | None) -> dict | None:
     if not api_key:
         return None
 
@@ -62,7 +67,6 @@ def _cached_get(endpoint: str, params: dict, cache_key: str, api_key: str | None
         except (OSError, ValueError):
             pass  # fall through and re-fetch
 
-    url = BASE_URL.format(season=params.pop("season"), endpoint=endpoint)
     try:
         with httpx.Client(timeout=15.0) as client:
             resp = client.get(url, params=params, headers={"x-api-key": api_key})
@@ -83,6 +87,11 @@ def _cached_get(endpoint: str, params: dict, cache_key: str, api_key: str | None
         os.unlink(tmp_path)
         raise
     return data
+
+
+def _cached_get(endpoint: str, params: dict, cache_key: str, api_key: str | None) -> dict | None:
+    url = BASE_URL.format(season=params.pop("season"), endpoint=endpoint)
+    return _cached_get_url(url, params, cache_key, api_key)
 
 
 def _trim_player(raw: dict) -> dict:
@@ -186,3 +195,73 @@ def get_expert_context(league_expert_rankings: dict, espn_player_id: int) -> dic
             if p.get("espn_player_id") == espn_player_id:
                 return p
     return None
+
+
+def _trim_injury(raw: dict) -> dict:
+    def _num(key):
+        value = raw.get(key)
+        try:
+            return float(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    return {
+        "fantasypros_id": raw.get("player_id"),
+        "status": raw.get("status"),
+        "injury_type": raw.get("practice_report_injury_type"),
+        "comment": raw.get("comment"),
+        "probability_of_playing": _num("probability_of_playing"),
+        # Practice participation for the week so far, oldest to newest —
+        # "Limit" then "Full" reads very differently than "Full" then "DNP".
+        "practice_report": [p for p in (raw.get("practice_1"), raw.get("practice_2"), raw.get("practice_3")) if p],
+        "updated_at": raw.get("injury_update_date"),
+    }
+
+
+def fetch_injuries(season: int, week: int, api_key: str | None) -> list[dict]:
+    """Full NFL injury report for the week — unlike consensus-rankings,
+    not capped at the top 10 by a free key, so this covers every rostered
+    player rather than just elite/startable ones.
+    include_probabilities=true also surfaces practice-report-only players
+    who don't have an official game status yet. Returns [] on any failure
+    (no key, request failure, malformed response)."""
+    params = {"year": season, "week": week, "include_probabilities": "true"}
+    cache_key = f"injuries_{season}_{week}"
+    data = _cached_get_url(INJURIES_URL, params, cache_key, api_key)
+    if not data:
+        return []
+    return [_trim_injury(p) for p in data.get("injuries", [])]
+
+
+def fetch_injury_context(
+    season: int, week: int, crosswalk: dict[int, dict[str, str]], api_key: str | None
+) -> dict[int, dict]:
+    """{espn_player_id: injury dict} for every player FantasyPros has an
+    injury/practice-report entry for this week, joined via the same
+    dynastyprocess crosswalk used for expert rankings. Best-effort: {} on
+    any failure, or if nothing in the report has a crosswalk match."""
+    injuries = fetch_injuries(season, week, api_key)
+    if not injuries:
+        return {}
+
+    fpid_to_espn_id = {
+        ids["fantasypros_id"]: espn_id for espn_id, ids in crosswalk.items() if ids.get("fantasypros_id")
+    }
+
+    result: dict[int, dict] = {}
+    for injury in injuries:
+        fpid = str(injury["fantasypros_id"]) if injury["fantasypros_id"] is not None else None
+        espn_id = fpid_to_espn_id.get(fpid)
+        if espn_id is not None:
+            result[espn_id] = injury
+    return result
+
+
+def get_injury_context(league_fantasypros_injuries: dict, espn_player_id: int) -> dict | None:
+    """Look up a single player's FantasyPros injury context from a
+    League.fantasypros_injuries bundle (JSON-keyed by string
+    espn_player_id) — None if FantasyPros has no injury/practice-report
+    entry for them (i.e. they're not banged up this week)."""
+    if not league_fantasypros_injuries:
+        return None
+    return league_fantasypros_injuries.get(str(espn_player_id))

@@ -86,6 +86,15 @@ export interface PlayerConsistency {
   label: "steady" | "streaky" | "boom/bust" | "unrated";
 }
 
+export interface FantasyProsInjury {
+  status: string | null;
+  injury_type: string | null;
+  comment: string | null;
+  probability_of_playing: number | null;
+  practice_report: string[];
+  updated_at: string | null;
+}
+
 export interface RosterPlayer {
   name: string;
   position: string;
@@ -98,6 +107,7 @@ export interface RosterPlayer {
   trend: PlayerTrend | null;
   consistency: PlayerConsistency | null;
   fantasycalc: FantasyCalcValue | null;
+  fp_injury: FantasyProsInjury | null;
 }
 
 export interface RosterResponse {
