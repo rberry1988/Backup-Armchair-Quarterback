@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { WaiverResponse } from "../types";
 import { api } from "../api";
+import { formatPoints } from "../formatPoints";
 import { MatchupTag } from "./MatchupTag";
 import { TrendTag } from "./TrendTag";
 import { InjuryBadge } from "./InjuryBadge";
@@ -62,7 +63,7 @@ export function WaiversTab({ leagueId }: { leagueId: number }) {
                       {s.add.name}
                       <InjuryBadge status={s.add.injury_status} />
                     </td>
-                    <td className="num">{s.add.projected_points ?? "-"}</td>
+                    <td className="num">{formatPoints(s.add.projected_points)}</td>
                     <td>
                       <MatchupTag matchup={s.add.matchup} />
                     </td>

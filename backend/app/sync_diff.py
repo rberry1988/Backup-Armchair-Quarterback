@@ -122,7 +122,7 @@ def diff_players(before: dict[int, dict], after: dict[int, dict]) -> list[dict]:
                     {
                         **base,
                         "kind": "projection",
-                        "detail": f"projection {direction} {abs(proj_delta):.1f} to {new_proj:.1f}",
+                        "detail": f"projection {direction} {abs(proj_delta):.0f} to {new_proj:.0f}",
                         "from": old_proj,
                         "to": new_proj,
                         "magnitude": proj_delta,

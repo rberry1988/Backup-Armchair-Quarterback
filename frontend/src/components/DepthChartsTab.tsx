@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { DepthChartEntry, DepthChartsResponse } from "../types";
 import { api } from "../api";
 import { InjuryBadge } from "./InjuryBadge";
+import { formatPoints } from "../formatPoints";
 
 const POSITION_ORDER = ["QB", "RB", "WR", "TE", "K"];
 
@@ -103,7 +104,7 @@ function DepthChartGroup({ title, players }: { title: string; players: DepthChar
                     </span>
                   )}
                 </td>
-                <td className="num">{p.projected_points ?? "-"}</td>
+                <td className="num">{formatPoints(p.projected_points)}</td>
                 <td>
                   <InjuryBadge status={p.injury_status} />
                 </td>

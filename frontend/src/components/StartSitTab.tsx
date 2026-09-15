@@ -3,6 +3,7 @@ import type { StartSitResponse } from "../types";
 import { api } from "../api";
 import { MatchupTag } from "./MatchupTag";
 import { InjuryBadge } from "./InjuryBadge";
+import { formatPoints } from "../formatPoints";
 
 export function StartSitTab({ leagueId }: { leagueId: number }) {
   const [data, setData] = useState<StartSitResponse | null>(null);
@@ -46,7 +47,7 @@ export function StartSitTab({ leagueId }: { leagueId: number }) {
                   {row.current_starter.name}
                   <InjuryBadge status={row.current_starter.injury_status} />
                 </td>
-                <td className="num">{row.current_starter.projected_points ?? "-"}</td>
+                <td className="num">{formatPoints(row.current_starter.projected_points)}</td>
                 <td>
                   <MatchupTag matchup={row.current_starter.matchup} />
                 </td>

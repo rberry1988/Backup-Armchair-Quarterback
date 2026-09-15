@@ -3,6 +3,7 @@ import type { AlertsResponse, ChangesResponse, RosterAlert, SyncChange } from ".
 import { api } from "../api";
 import { PositionTag } from "./PositionTag";
 import { InjuryBadge } from "./InjuryBadge";
+import { formatPoints } from "../formatPoints";
 
 const KIND_LABEL: Record<SyncChange["kind"], string> = {
   injury: "Injury",
@@ -139,7 +140,7 @@ function AlertCard({ alert }: { alert: RosterAlert }) {
           {replacements.map((r, i) => (
             <span key={r.espn_player_id}>
               {i > 0 && ", "}
-              {r.name} ({r.projected_points ?? "-"} proj)
+              {r.name} ({formatPoints(r.projected_points)} proj)
             </span>
           ))}
         </p>

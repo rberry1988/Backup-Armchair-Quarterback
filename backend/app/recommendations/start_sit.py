@@ -65,7 +65,7 @@ def get_start_sit(db: Session, league_id: int, my_team_id: int) -> dict:
                 reason = f"{current_starter.full_name} has no projection this week (likely bye)"
             else:
                 diff = points_or_default(recommended) - points_or_default(current_starter)
-                reason = f"+{diff:.1f} projected points"
+                reason = f"+{round(diff)} projected points"
 
         lineup.append(
             {

@@ -4,6 +4,7 @@ import { api } from "../api";
 import { TrendTag } from "./TrendTag";
 import { PositionTag } from "./PositionTag";
 import { InjuryBadge } from "./InjuryBadge";
+import { formatPoints } from "../formatPoints";
 
 const CONSISTENCY_CLASS: Record<string, string> = {
   steady: "matchup-favorable",
@@ -103,7 +104,7 @@ export function RosterTab({ leagueId }: { leagueId: number }) {
               <tr key={i} className={p.is_starter ? "" : "bench-row"}>
                 <td>{p.slot}</td>
                 <td>{p.name}</td>
-                <td className="num">{p.projected_points ?? "-"}</td>
+                <td className="num">{formatPoints(p.projected_points)}</td>
                 <td className="num">{p.actual_points ?? "-"}</td>
                 <td className="num">{p.percent_owned.toFixed(1)}%</td>
                 <td>
