@@ -15,6 +15,7 @@ from app.auth import (
     get_current_user,
     hash_password,
     is_admin,
+    is_admin_locked,
     record_failed_login,
     require_admin,
     verify_password,
@@ -37,6 +38,7 @@ from app.schemas import (
     LoginRequest,
     RegisterRequest,
     ResetPasswordRequest,
+    SetAdminRequest,
     SetMyTeamRequest,
     SyncRequest,
     TokenResponse,
@@ -122,18 +124,24 @@ def change_password(
 # ---------------------------------------------------------------------------
 
 
+def _admin_user_out(u: User, league_count: int) -> AdminUserOut:
+    return AdminUserOut(
+        id=u.id,
+        email=u.email,
+        created_at=u.created_at,
+        league_count=league_count,
+        is_admin=is_admin(u),
+        admin_locked=is_admin_locked(u),
+    )
+
+
 @app.get("/api/admin/users", response_model=list[AdminUserOut])
 def admin_list_users(db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
     users = db.query(User).order_by(User.created_at).all()
     league_counts = dict(
         db.query(League.user_id, func.count(League.id)).group_by(League.user_id).all()
     )
-    return [
-        AdminUserOut(
-            id=u.id, email=u.email, created_at=u.created_at, league_count=league_counts.get(u.id, 0)
-        )
-        for u in users
-    ]
+    return [_admin_user_out(u, league_counts.get(u.id, 0)) for u in users]
 
 
 @app.post("/api/admin/users", response_model=AdminUserOut, status_code=201)
@@ -148,7 +156,7 @@ def admin_create_user(
         db.rollback()
         raise HTTPException(status_code=409, detail="An account with that email already exists") from exc
     db.refresh(user)
-    return AdminUserOut(id=user.id, email=user.email, created_at=user.created_at, league_count=0)
+    return _admin_user_out(user, 0)
 
 
 @app.delete("/api/admin/users/{user_id}", status_code=204)
@@ -180,6 +188,34 @@ def admin_reset_password(
         raise HTTPException(status_code=404, detail="User not found")
     user.hashed_password = hash_password(payload.new_password)
     db.commit()
+
+
+@app.post("/api/admin/users/{user_id}/admin", response_model=AdminUserOut)
+def admin_set_admin(
+    user_id: int,
+    payload: SetAdminRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Grant or revoke admin access for another account. Layers on top of
+    (never replaces) ADMIN_EMAILS — see User.admin_granted and
+    auth.is_admin(). Config-listed admins can't be changed here since the
+    toggle would have no real effect; edit backend/.env for those."""
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="You can't change your own admin access")
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if is_admin_locked(user):
+        raise HTTPException(
+            status_code=400,
+            detail="This account's admin access is set via ADMIN_EMAILS in backend/.env, not toggleable here.",
+        )
+    user.admin_granted = payload.is_admin
+    db.commit()
+    db.refresh(user)
+    league_count = db.query(func.count(League.id)).filter(League.user_id == user.id).scalar() or 0
+    return _admin_user_out(user, league_count)
 
 
 @app.post("/api/admin/update")

@@ -146,5 +146,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ new_password: newPassword }),
     }),
+  adminSetAdmin: (userId: number, isAdmin: boolean) =>
+    request<AdminUser>(`/api/admin/users/${userId}/admin`, {
+      method: "POST",
+      body: JSON.stringify({ is_admin: isAdmin }),
+    }),
   adminUpdate: () => request<UpdateResult>("/api/admin/update", { method: "POST" }),
 };

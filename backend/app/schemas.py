@@ -72,3 +72,13 @@ class AdminUserOut(BaseModel):
     email: str
     created_at: datetime.datetime
     league_count: int
+    is_admin: bool = False
+    # True when admin status comes from ADMIN_EMAILS in backend/.env rather
+    # than a grant made from this tab — the UI shows those as a fixed badge
+    # instead of a toggle, since flipping the DB flag wouldn't change
+    # anything (see auth.is_admin/is_admin_locked).
+    admin_locked: bool = False
+
+
+class SetAdminRequest(BaseModel):
+    is_admin: bool

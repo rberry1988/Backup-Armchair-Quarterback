@@ -17,6 +17,15 @@ class User(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
     )
+    # Admin status granted by an existing admin from the Admin tab, on top
+    # of (never instead of) config.admin_email_list — see app/auth.py's
+    # is_admin(), which ORs the two together. Named distinctly from that
+    # function to keep "the raw per-account grant" and "is this account
+    # effectively an admin right now" from reading as the same thing.
+    # ADMIN_EMAILS stays the bootstrap mechanism (works on a totally empty
+    # database), this is how admins add more admins later without editing
+    # backend/.env by hand.
+    admin_granted: Mapped[bool] = mapped_column(Boolean, default=False)
 
     leagues: Mapped[list["League"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 

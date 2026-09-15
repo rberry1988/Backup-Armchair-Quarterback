@@ -13,6 +13,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const [pendingAdminId, setPendingAdminId] = useState<number | null>(null);
 
   const [resetTargetId, setResetTargetId] = useState<number | null>(null);
   const [resetPassword, setResetPassword] = useState("");
@@ -74,6 +75,28 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
       setError(err instanceof ApiError ? err.message : "Failed to remove person.");
     } finally {
       setPendingDeleteId(null);
+    }
+  }
+
+  async function handleToggleAdmin(user: AdminUser) {
+    const makeAdmin = !user.is_admin;
+    if (
+      !window.confirm(
+        makeAdmin
+          ? `Make ${user.email} an admin? They'll be able to add/remove people and use the Update button.`
+          : `Remove admin access from ${user.email}?`
+      )
+    )
+      return;
+    setPendingAdminId(user.id);
+    setError(null);
+    try {
+      const updated = await api.adminSetAdmin(user.id, makeAdmin);
+      setUsers((prev) => prev?.map((u) => (u.id === updated.id ? updated : u)) ?? null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to change admin access.");
+    } finally {
+      setPendingAdminId(null);
     }
   }
 
@@ -194,6 +217,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
                 <th>Email</th>
                 <th>Joined</th>
                 <th className="num">Leagues</th>
+                <th>Admin</th>
                 <th></th>
               </tr>
             </thead>
@@ -204,6 +228,19 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
                     <td>{u.email}</td>
                     <td className="hint">{new Date(u.created_at).toLocaleDateString()}</td>
                     <td className="num">{u.league_count}</td>
+                    <td>
+                      {u.admin_locked ? (
+                        <span className="hint" title="Set via ADMIN_EMAILS in backend/.env">
+                          Admin (config)
+                        </span>
+                      ) : u.id === currentUserId ? (
+                        <span className="hint">{u.is_admin ? "Admin (you)" : "—"}</span>
+                      ) : (
+                        <button onClick={() => handleToggleAdmin(u)} disabled={pendingAdminId === u.id}>
+                          {pendingAdminId === u.id ? "Saving..." : u.is_admin ? "Remove Admin" : "Make Admin"}
+                        </button>
+                      )}
+                    </td>
                     <td style={{ display: "flex", gap: "0.4rem" }}>
                       <button onClick={() => openReset(u.id)}>Reset Password</button>
                       {u.id !== currentUserId && (
@@ -216,7 +253,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
                   {resetTargetId === u.id && (
                     <tr className="bench-row">
                       <td></td>
-                      <td colSpan={3}>
+                      <td colSpan={4}>
                         <form
                           onSubmit={(e) => handleResetPassword(e, u.id)}
                           style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
@@ -244,7 +281,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
                   {justResetId === u.id && (
                     <tr>
                       <td></td>
-                      <td colSpan={3} className="success">
+                      <td colSpan={4} className="success">
                         Password reset. Share the new one with {u.email} directly.
                       </td>
                     </tr>

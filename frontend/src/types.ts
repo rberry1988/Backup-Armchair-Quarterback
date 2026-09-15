@@ -26,6 +26,8 @@ export interface AdminUser {
   email: string;
   created_at: string;
   league_count: number;
+  is_admin: boolean;
+  admin_locked: boolean;
 }
 
 export interface UpdateStep {

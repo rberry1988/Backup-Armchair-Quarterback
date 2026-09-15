@@ -108,6 +108,14 @@ def get_current_user(
 
 
 def is_admin(user: User) -> bool:
+    return user.email.lower() in settings.admin_email_list or user.admin_granted
+
+
+def is_admin_locked(user: User) -> bool:
+    """True when admin status comes from ADMIN_EMAILS (backend/.env), not
+    the database — those accounts can't be un-admin'd from the Admin tab,
+    only by editing the config, so the UI shouldn't offer a toggle that
+    would silently do nothing."""
     return user.email.lower() in settings.admin_email_list
 
 
