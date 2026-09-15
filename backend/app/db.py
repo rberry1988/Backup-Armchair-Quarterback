@@ -57,6 +57,14 @@ def _ensure_column(conn, table: str, column: str, ddl: str) -> None:
         conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN {column} {ddl}'))
 
 
+def _ensure_index(conn, table: str, column: str) -> None:
+    """Same problem as _ensure_column, one level down: create_all() skips a
+    table that already exists, so an index added to a model later never
+    reaches an existing install's disk. Name matches SQLAlchemy's own
+    convention so a fresh database doesn't end up with two of them."""
+    conn.execute(text(f'CREATE INDEX IF NOT EXISTS ix_{table}_{column} ON "{table}" ({column})'))
+
+
 def init_db():
     from app import models  # noqa: F401  (ensure models are registered)
 
@@ -68,4 +76,10 @@ def init_db():
         _ensure_column(conn, "users", "display_name", "VARCHAR")
         _ensure_column(conn, "leagues", "fantasycalc_values", "JSON DEFAULT '{}'")
         _ensure_column(conn, "leagues", "fantasypros_injuries", "JSON DEFAULT '{}'")
+        # SQLite gives foreign keys no index of their own; these four are the
+        # ones every league-scoped read filters or joins on.
+        _ensure_index(conn, "teams", "league_id")
+        _ensure_index(conn, "players", "league_id")
+        _ensure_index(conn, "roster_entries", "team_id")
+        _ensure_index(conn, "roster_entries", "player_id")
         conn.commit()

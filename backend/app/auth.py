@@ -64,6 +64,41 @@ def clear_failed_logins(email: str, client_ip: str) -> None:
     _failed_attempts.pop((email, client_ip), None)
 
 
+# Sign-up throttling, same in-process approach and caveats as above. Login
+# is throttled on *failures*; registration has to be throttled on successes
+# too, or anyone who can reach the app can mint unlimited accounts — each of
+# which can trigger league syncs that fan out to four external APIs and
+# write a few thousand rows. Generous enough that an admin adding the whole
+# league in one sitting never trips it.
+MAX_REGISTRATIONS_PER_IP = 5
+REGISTRATION_WINDOW_SECONDS = 60 * 60
+_registrations: dict[str, list[float]] = {}
+
+
+def check_registration_allowed(client_ip: str) -> None:
+    """Raise 429 once this address has created too many accounts recently."""
+    now = time.monotonic()
+    for key in list(_registrations):
+        recent = [at for at in _registrations[key] if now - at < REGISTRATION_WINDOW_SECONDS]
+        if recent:
+            _registrations[key] = recent
+        else:
+            _registrations.pop(key, None)
+
+    attempts = _registrations.get(client_ip, [])
+    if len(attempts) >= MAX_REGISTRATIONS_PER_IP:
+        retry_after = int(REGISTRATION_WINDOW_SECONDS - (now - min(attempts))) + 1
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many accounts created from this address. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+def record_registration(client_ip: str) -> None:
+    _registrations.setdefault(client_ip, []).append(time.monotonic())
+
+
 def client_ip(request: Request) -> str:
     """The deployed nginx sets X-Real-IP from the socket peer, overwriting
     anything the client sent, and uvicorn only listens on localhost — so

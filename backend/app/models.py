@@ -119,7 +119,11 @@ class Team(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     espn_team_id: Mapped[int] = mapped_column(Integer)
-    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"))
+    # SQLite doesn't index foreign keys automatically, and every league-scoped
+    # read filters on this — without it each one is a full table scan across
+    # every user's teams. Same reason for the indexes on Player.league_id and
+    # RosterEntry's two FKs below.
+    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"), index=True)
     name: Mapped[str] = mapped_column(String)
     abbrev: Mapped[str] = mapped_column(String, default="")
     wins: Mapped[int] = mapped_column(Integer, default=0)
@@ -139,7 +143,7 @@ class Player(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     espn_player_id: Mapped[int] = mapped_column(Integer, index=True)
-    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"))
+    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"), index=True)
     full_name: Mapped[str] = mapped_column(String)
     position: Mapped[str] = mapped_column(String)
     pro_team_id: Mapped[int] = mapped_column(Integer, default=0)
@@ -195,8 +199,8 @@ class RosterEntry(Base):
     __tablename__ = "roster_entries"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"))
-    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), index=True)
     lineup_slot_id: Mapped[int] = mapped_column(Integer)
     lineup_slot: Mapped[str] = mapped_column(String)
     is_starter: Mapped[bool] = mapped_column(Boolean, default=False)

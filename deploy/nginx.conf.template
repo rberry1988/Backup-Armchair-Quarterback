@@ -5,6 +5,21 @@ server {
     root __APP_DIR__/frontend/dist;
     index index.html;
 
+    # The React bundle is ~275 KB uncompressed and ~83 KB gzipped. nginx's
+    # packaged default only gzips text/html, so without this every visitor
+    # pulls the full 275 KB. Not applied to images — they're already
+    # compressed and re-compressing just burns CPU.
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
+    # Clickjacking, MIME-sniffing, and referrer leakage. This app has no
+    # reason to be framed or to send its URLs to third parties.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "same-origin" always;
+
     # The backend only listens on localhost — nginx is the single
     # externally-reachable entry point. Every API route in this app is
     # under /api/, so that's the only path that needs proxying; everything
@@ -24,7 +39,29 @@ server {
         proxy_send_timeout 300s;
     }
 
+    # Vite fingerprints everything under assets/ with a content hash, so a
+    # given URL's bytes never change — a new build means new filenames.
+    # That makes these safe to cache forever, which is what stops the
+    # bundle being re-downloaded on every visit.
+    location /assets/ {
+        # One explicit Cache-Control rather than `expires 1y` as well, which
+        # would emit a second, separate Cache-Control header.
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        # add_header in a nested block drops the ones inherited from the
+        # server block, so the security headers have to be repeated here.
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "same-origin" always;
+    }
+
     location / {
+        # index.html must never be cached: it's what points at the current
+        # build's hashed asset filenames, so a stale copy would keep serving
+        # the old app after an update.
+        add_header Cache-Control "no-cache" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "same-origin" always;
         try_files $uri /index.html;
     }
 }

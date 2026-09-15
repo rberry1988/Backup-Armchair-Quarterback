@@ -1,4 +1,5 @@
 from collections import defaultdict
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,7 @@ from app.alerts import get_roster_alerts
 from app.app_settings import fantasypros_api_key_source, set_fantasypros_api_key
 from app.auth import (
     check_login_allowed,
+    check_registration_allowed,
     clear_failed_logins,
     client_ip,
     create_access_token,
@@ -19,6 +21,7 @@ from app.auth import (
     is_admin,
     is_admin_locked,
     record_failed_login,
+    record_registration,
     require_admin,
     verify_password,
 )
@@ -56,8 +59,16 @@ from app.schemas import (
 from app.sync_service import sync_league
 from app.trends import get_player_trends
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    init_db()
+    yield
+
+
 app = FastAPI(
     title="Backup Armchair Quarterback",
+    lifespan=lifespan,
     # Off unless ENABLE_API_DOCS=true — see Settings.enable_api_docs.
     docs_url="/docs" if settings.enable_api_docs else None,
     redoc_url="/redoc" if settings.enable_api_docs else None,
@@ -72,18 +83,15 @@ app.add_middleware(
 )
 
 
-@app.on_event("startup")
-def on_startup():
-    init_db()
-
-
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
 
 
 @app.post("/api/auth/register", response_model=TokenResponse)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+def register(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)):
+    ip = client_ip(request)
+    check_registration_allowed(ip)
     user = User(email=payload.email.lower(), hashed_password=hash_password(payload.password))
     db.add(user)
     try:
@@ -92,6 +100,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=409, detail="An account with that email already exists") from exc
     db.refresh(user)
+    record_registration(ip)
     return TokenResponse(access_token=create_access_token(user.id))
 
 

@@ -64,6 +64,12 @@ PLACEHOLDER_JWT_SECRETS = {"dev-secret-change-me", "change-me-to-a-random-string
 
 _SECRET_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "jwt_secret")
 
+# RFC 7518 §3.2: an HMAC-SHA256 key should be at least as long as the hash
+# output. A shorter one is brute-forceable, and forging the signature means
+# forging a session for any user id. PyJWT >=2.12 warns about this itself;
+# this turns that into advice that names the actual fix.
+MIN_JWT_SECRET_BYTES = 32
+
 
 def _resolve_jwt_secret(configured: str) -> str:
     """The key sessions are actually signed with.
@@ -74,6 +80,18 @@ def _resolve_jwt_secret(configured: str) -> str:
     generating a fresh key each boot wouldn't do.
     """
     if configured.strip() not in PLACEHOLDER_JWT_SECRETS:
+        if len(configured.encode("utf-8")) < MIN_JWT_SECRET_BYTES:
+            # Deliberately a warning, not a hard failure: refusing to boot
+            # would take a working deployment offline on upgrade, which is
+            # worse than a short key on a LAN app. Rotating it logs everyone
+            # out once, which is why it isn't done silently either.
+            logger.warning(
+                "JWT_SECRET is only %d bytes; %d+ is recommended for HS256. Regenerate it with "
+                "`python3 -c \"import secrets; print(secrets.token_hex(32))\"` and set it in "
+                "backend/.env (everyone will be signed out once when you do).",
+                len(configured.encode("utf-8")),
+                MIN_JWT_SECRET_BYTES,
+            )
         return configured
 
     try:
