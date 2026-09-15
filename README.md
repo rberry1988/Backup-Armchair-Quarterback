@@ -192,7 +192,8 @@ service with the new code at the end.
 
 Each teammate in your league can register their own account on the same
 running instance and pick their own team — nobody sees anyone else's
-selections or synced data.
+selections or synced data. Anyone can change their own password from the
+**Account** tab at any time (you'll need your current one).
 
 ## Admin: adding and removing accounts
 
@@ -202,8 +203,8 @@ can use this instance — an alternative to everyone self-registering.
 
 - **Add a person**: enter an email and a password (8+ characters) and share
   it with them directly — there's no invite email or password-reset flow,
-  so pick something you're comfortable telling them and let them change it
-  themselves later if you add that capability.
+  so pick something you're comfortable telling them. They can change it
+  themselves afterward from their own **Account** tab.
 - **Remove a person**: deletes their account and everything scoped to it
   (synced leagues, team selection) — it doesn't touch anyone else's data.
   You can't remove your own account this way.

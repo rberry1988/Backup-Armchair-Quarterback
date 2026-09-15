@@ -14,12 +14,14 @@ import { AlertsTab } from "./components/AlertsTab";
 import { ScheduleTab } from "./components/ScheduleTab";
 import { BenchPointsTab } from "./components/BenchPointsTab";
 import { AdminTab } from "./components/AdminTab";
+import { AccountTab } from "./components/AccountTab";
 import { api, clearToken, getToken } from "./api";
 import { formatRelativeTime } from "./relativeTime";
 import type { LeagueSummary, User } from "./types";
 
 type Tab =
   | "setup"
+  | "account"
   | "alerts"
   | "roster"
   | "start-sit"
@@ -34,10 +36,11 @@ type Tab =
   | "admin";
 
 // Tabs that don't need a synced league selected to be usable.
-const NO_LEAGUE_REQUIRED: Tab[] = ["setup", "admin"];
+const NO_LEAGUE_REQUIRED: Tab[] = ["setup", "account", "admin"];
 
 const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "setup", label: "Setup" },
+  { id: "account", label: "Account" },
   { id: "alerts", label: "Alerts" },
   { id: "roster", label: "Roster" },
   { id: "start-sit", label: "Start / Sit" },
@@ -148,6 +151,7 @@ function App() {
         {tab === "schedule" && league && <ScheduleTab leagueId={league.id} />}
         {tab === "bench-points" && league && <BenchPointsTab leagueId={league.id} />}
         {tab === "admin" && user.is_admin && <AdminTab currentUserId={user.id} />}
+        {tab === "account" && <AccountTab email={user.email} />}
       </main>
     </div>
   );

@@ -32,6 +32,7 @@ from app.recommendations.trades import get_trade_suggestions, grade_trade
 from app.recommendations.waivers import get_waiver_targets
 from app.schemas import (
     AdminUserOut,
+    ChangePasswordRequest,
     LoginRequest,
     RegisterRequest,
     SetMyTeamRequest,
@@ -100,6 +101,18 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 @app.get("/api/auth/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
     return {"id": current_user.id, "email": current_user.email, "is_admin": is_admin(current_user)}
+
+
+@app.post("/api/auth/change-password", status_code=204)
+def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    current_user.hashed_password = hash_password(payload.new_password)
+    db.commit()
 
 
 # ---------------------------------------------------------------------------

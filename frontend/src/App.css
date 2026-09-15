@@ -107,6 +107,10 @@ button:disabled {
   color: #f28b82;
 }
 
+.success {
+  color: #81c995;
+}
+
 .team-picker {
   display: flex;
   align-items: center;

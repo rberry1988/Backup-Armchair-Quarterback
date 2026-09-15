@@ -75,6 +75,11 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<User>("/api/auth/me"),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
 
   listLeagues: () => request<LeagueSummary[]>("/api/leagues"),
   sync: (leagueId: number, season: number) =>
