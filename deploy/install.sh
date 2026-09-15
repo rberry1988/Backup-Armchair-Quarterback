@@ -111,9 +111,17 @@ if [ -z "$PYTHON_BIN" ]; then
     # $APP_USER (whose $HOME is $APP_DIR, already owned by it) rather than
     # root, so the venv step right below — which also runs as $APP_USER —
     # can actually read and execute the interpreter uv installs.
-    sudo -u "$APP_USER" bash -c "curl -LsSf https://astral.sh/uv/install.sh | sh"
-    sudo -u "$APP_USER" "$APP_DIR/.local/bin/uv" python install 3.12
-    PYTHON_BIN="$(sudo -u "$APP_USER" "$APP_DIR/.local/bin/uv" python find 3.12)"
+    #
+    # `cd "$APP_DIR"` first and `--no-config` on every uv invocation:
+    # without both, uv inherits this script's working directory (wherever
+    # the admin ran `sudo bash deploy/install.sh` from) and walks up from
+    # there looking for a uv.toml/pyproject.toml to read — if that
+    # directory tree is root-owned (the common case: a clone under
+    # /root), $APP_USER can't even traverse it and every uv command fails
+    # with a permission error before doing anything useful.
+    sudo -u "$APP_USER" bash -c "cd '$APP_DIR' && curl -LsSf https://astral.sh/uv/install.sh | sh"
+    sudo -u "$APP_USER" bash -c "cd '$APP_DIR' && '$APP_DIR/.local/bin/uv' python install --no-config 3.12"
+    PYTHON_BIN="$(sudo -u "$APP_USER" bash -c "cd '$APP_DIR' && '$APP_DIR/.local/bin/uv' python find --no-config 3.12")"
 fi
 echo "    Using $PYTHON_BIN for the backend virtualenv"
 
