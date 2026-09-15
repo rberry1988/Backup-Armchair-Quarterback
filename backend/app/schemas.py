@@ -67,6 +67,18 @@ class UserOut(BaseModel):
     is_admin: bool = False
     # Effective premium access (own grant OR admin) — see auth.has_premium_access.
     is_premium: bool = False
+    display_name: str | None = None
+
+
+class UpdateDisplayNameRequest(BaseModel):
+    # Empty/whitespace clears it, falling back to the account's email
+    # everywhere it's shown.
+    display_name: str = Field(max_length=50)
+
+    @field_validator("display_name")
+    @classmethod
+    def _strip(cls, v: str) -> str:
+        return v.strip()
 
 
 class AdminUserOut(BaseModel):

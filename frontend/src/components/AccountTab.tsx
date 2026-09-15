@@ -2,13 +2,41 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { ApiError, api } from "../api";
 
-export function AccountTab({ email }: { email: string }) {
+interface Props {
+  email: string;
+  displayName: string | null;
+  onDisplayNameChange: (displayName: string | null) => void;
+}
+
+export function AccountTab({ email, displayName, onDisplayNameChange }: Props) {
+  const [nameInput, setNameInput] = useState(displayName ?? "");
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [nameSaved, setNameSaved] = useState(false);
+  const [savingName, setSavingName] = useState(false);
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  async function handleSaveDisplayName(e: FormEvent) {
+    e.preventDefault();
+    setNameError(null);
+    setNameSaved(false);
+    setSavingName(true);
+    try {
+      const updated = await api.updateDisplayName(nameInput);
+      onDisplayNameChange(updated.display_name);
+      setNameInput(updated.display_name ?? "");
+      setNameSaved(true);
+    } catch (err) {
+      setNameError(err instanceof ApiError ? err.message : "Failed to save display name.");
+    } finally {
+      setSavingName(false);
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -41,6 +69,25 @@ export function AccountTab({ email }: { email: string }) {
         Signed in as {email}. Changing your password doesn't sign you out anywhere else you're currently logged
         in &mdash; that happens naturally once your existing session expires.
       </p>
+
+      <form onSubmit={handleSaveDisplayName} className="form-row">
+        <label>
+          Display name
+          <input
+            type="text"
+            maxLength={50}
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            placeholder={email}
+          />
+        </label>
+        <button type="submit" disabled={savingName}>
+          {savingName ? "Saving..." : "Save"}
+        </button>
+      </form>
+      {nameError && <p className="error">{nameError}</p>}
+      {nameSaved && <p className="success">Saved &mdash; shown in place of your email at the top of the page.</p>}
+      <p className="hint">Leave it blank to show your email there instead.</p>
 
       <form onSubmit={handleSubmit} style={{ maxWidth: "320px" }}>
         <div className="form-row" style={{ flexDirection: "column", alignItems: "stretch" }}>

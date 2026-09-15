@@ -89,6 +89,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
     }),
+  updateDisplayName: (displayName: string) =>
+    request<User>("/api/auth/display-name", {
+      method: "POST",
+      body: JSON.stringify({ display_name: displayName }),
+    }),
 
   listLeagues: () => request<LeagueSummary[]>("/api/leagues"),
   sync: (leagueId: number, season: number) =>

@@ -143,7 +143,7 @@ function App() {
           </span>
         )}
         <div className="header-right">
-          <span>{user.email}</span>
+          <span>{user.display_name || user.email}</span>
           <button className="logout-button" onClick={handleLogout}>
             Log out
           </button>
@@ -167,6 +167,8 @@ function App() {
         {tab === "settings" && (
           <SettingsTab
             email={user.email}
+            displayName={user.display_name}
+            onDisplayNameChange={(displayName) => setUser((prev) => (prev ? { ...prev, display_name: displayName } : prev))}
             league={league}
             leagues={leagues}
             onLeagueChange={handleLeagueChange}

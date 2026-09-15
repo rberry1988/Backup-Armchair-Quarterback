@@ -49,6 +49,7 @@ from app.schemas import (
     SyncRequest,
     TokenResponse,
     TradeGradeRequest,
+    UpdateDisplayNameRequest,
     UserOut,
 )
 from app.sync_service import sync_league
@@ -108,14 +109,31 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     return TokenResponse(access_token=create_access_token(user.id))
 
 
+def _user_out(user: User) -> dict:
+    return {
+        "id": user.id,
+        "email": user.email,
+        "is_admin": is_admin(user),
+        "is_premium": has_premium_access(user),
+        "display_name": user.display_name,
+    }
+
+
 @app.get("/api/auth/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
-    return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "is_admin": is_admin(current_user),
-        "is_premium": has_premium_access(current_user),
-    }
+    return _user_out(current_user)
+
+
+@app.post("/api/auth/display-name", response_model=UserOut)
+def update_display_name(
+    payload: UpdateDisplayNameRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    current_user.display_name = payload.display_name or None
+    db.commit()
+    db.refresh(current_user)
+    return _user_out(current_user)
 
 
 @app.post("/api/auth/change-password", status_code=204)

@@ -20,6 +20,7 @@ export interface User {
   email: string;
   is_admin: boolean;
   is_premium: boolean;
+  display_name: string | null;
 }
 
 export interface AdminUser {

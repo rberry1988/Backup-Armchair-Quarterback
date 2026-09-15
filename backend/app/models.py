@@ -31,6 +31,10 @@ class User(Base):
     # tab. See app/auth.py's has_premium_access(), which also grants access
     # to admins regardless of this flag.
     is_premium: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Optional self-set display name shown in the header instead of the
+    # account's email; null/empty falls back to the email everywhere (see
+    # main.py's /api/auth/me and /api/auth/display-name).
+    display_name: Mapped[str | None] = mapped_column(String, nullable=True)
 
     leagues: Mapped[list["League"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
