@@ -58,6 +58,7 @@ function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [league, setLeague] = useState<LeagueSummary | null>(null);
+  const [leagues, setLeagues] = useState<LeagueSummary[]>([]);
   const [tab, setTab] = useState<Tab>("setup");
 
   useEffect(() => {
@@ -72,9 +73,10 @@ function App() {
     try {
       const me = await api.me();
       setUser(me);
-      const leagues = await api.listLeagues();
-      if (leagues.length > 0) {
-        const mostRecent = leagues[0];
+      const fetchedLeagues = await api.listLeagues();
+      setLeagues(fetchedLeagues);
+      if (fetchedLeagues.length > 0) {
+        const mostRecent = fetchedLeagues[0];
         setLeague(mostRecent);
         setTab(mostRecent.my_team_id != null ? "alerts" : "setup");
       }
@@ -86,10 +88,25 @@ function App() {
     }
   }
 
+  // Called after both a fresh sync and a team-selection change (SetupPanel
+  // uses the same callback for either) — merges the updated league into
+  // the full list instead of just replacing the active one, so switching
+  // to a second league doesn't make the first one disappear from view.
+  function handleLeagueChange(updated: LeagueSummary) {
+    setLeagues((prev) => [updated, ...prev.filter((l) => l.id !== updated.id)]);
+    setLeague(updated);
+  }
+
+  function handleLeagueSelect(leagueId: number) {
+    const found = leagues.find((l) => l.id === leagueId);
+    if (found) setLeague(found);
+  }
+
   function handleLogout() {
     clearToken();
     setUser(null);
     setLeague(null);
+    setLeagues([]);
     setTab("setup");
   }
 
@@ -108,7 +125,22 @@ function App() {
     <div className="app">
       <header>
         <h1>Backup Armchair Quarterback</h1>
-        {league && <span className="league-badge">{league.name}</span>}
+        {leagues.length > 1 ? (
+          <select
+            className="league-badge"
+            value={league?.id ?? ""}
+            onChange={(e) => handleLeagueSelect(Number(e.target.value))}
+            aria-label="Switch league"
+          >
+            {leagues.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name} ({l.season})
+              </option>
+            ))}
+          </select>
+        ) : (
+          league && <span className="league-badge">{league.name}</span>
+        )}
         {league?.synced_at && (
           <span className="hint sync-freshness" title={new Date(league.synced_at).toLocaleString()}>
             Synced {formatRelativeTime(league.synced_at)}
@@ -136,7 +168,7 @@ function App() {
       </nav>
 
       <main>
-        {tab === "setup" && <SetupPanel league={league} onLeagueChange={setLeague} />}
+        {tab === "setup" && <SetupPanel league={league} onLeagueChange={handleLeagueChange} />}
         {tab === "roster" && league && <RosterTab leagueId={league.id} />}
         {tab === "start-sit" && league && <StartSitTab leagueId={league.id} />}
         {tab === "waivers" && league && <WaiversTab leagueId={league.id} />}
