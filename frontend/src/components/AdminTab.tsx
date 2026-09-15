@@ -14,6 +14,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
   const [creating, setCreating] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [pendingAdminId, setPendingAdminId] = useState<number | null>(null);
+  const [pendingPremiumId, setPendingPremiumId] = useState<number | null>(null);
 
   const [resetTargetId, setResetTargetId] = useState<number | null>(null);
   const [resetPassword, setResetPassword] = useState("");
@@ -154,6 +155,20 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
     }
   }
 
+  async function handleTogglePremium(user: AdminUser) {
+    const makePremium = !user.is_premium;
+    setPendingPremiumId(user.id);
+    setError(null);
+    try {
+      const updated = await api.adminSetPremium(user.id, makePremium);
+      setUsers((prev) => prev?.map((u) => (u.id === updated.id ? updated : u)) ?? null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to change premium access.");
+    } finally {
+      setPendingPremiumId(null);
+    }
+  }
+
   function openReset(userId: number) {
     setResetTargetId(userId);
     setResetPassword("");
@@ -272,6 +287,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
                 <th>Joined</th>
                 <th className="num">Leagues</th>
                 <th>Admin</th>
+                <th>Access Tier</th>
                 <th></th>
               </tr>
             </thead>
@@ -295,6 +311,17 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
                         </button>
                       )}
                     </td>
+                    <td>
+                      {u.is_admin ? (
+                        <span className="hint" title="Admins always have full access">
+                          Premium (admin)
+                        </span>
+                      ) : (
+                        <button onClick={() => handleTogglePremium(u)} disabled={pendingPremiumId === u.id}>
+                          {pendingPremiumId === u.id ? "Saving..." : u.is_premium ? "Move to Basic" : "Move to Premium"}
+                        </button>
+                      )}
+                    </td>
                     <td style={{ display: "flex", gap: "0.4rem" }}>
                       <button onClick={() => openReset(u.id)}>Reset Password</button>
                       {u.id !== currentUserId && (
@@ -307,7 +334,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
                   {resetTargetId === u.id && (
                     <tr className="bench-row">
                       <td></td>
-                      <td colSpan={4}>
+                      <td colSpan={5}>
                         <form
                           onSubmit={(e) => handleResetPassword(e, u.id)}
                           style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
@@ -335,7 +362,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
                   {justResetId === u.id && (
                     <tr>
                       <td></td>
-                      <td colSpan={4} className="success">
+                      <td colSpan={5} className="success">
                         Password reset. Share the new one with {u.email} directly.
                       </td>
                     </tr>

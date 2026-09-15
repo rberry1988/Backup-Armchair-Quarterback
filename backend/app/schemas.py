@@ -65,6 +65,8 @@ class UserOut(BaseModel):
     id: int
     email: str
     is_admin: bool = False
+    # Effective premium access (own grant OR admin) — see auth.has_premium_access.
+    is_premium: bool = False
 
 
 class AdminUserOut(BaseModel):
@@ -78,10 +80,17 @@ class AdminUserOut(BaseModel):
     # instead of a toggle, since flipping the DB flag wouldn't change
     # anything (see auth.is_admin/is_admin_locked).
     admin_locked: bool = False
+    # Raw premium grant (not OR'd with admin status) — the Admin tab's
+    # toggle controls exactly this flag.
+    is_premium: bool = False
 
 
 class SetAdminRequest(BaseModel):
     is_admin: bool
+
+
+class SetPremiumRequest(BaseModel):
+    is_premium: bool
 
 
 class FantasyProsKeyRequest(BaseModel):

@@ -26,6 +26,11 @@ class User(Base):
     # database), this is how admins add more admins later without editing
     # backend/.env by hand.
     admin_granted: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Premium access tier, granted by an admin from the Admin tab. Everyone
+    # starts as "basic" (False); gates premium-only features like the Extra
+    # tab. See app/auth.py's has_premium_access(), which also grants access
+    # to admins regardless of this flag.
+    is_premium: Mapped[bool] = mapped_column(Boolean, default=False)
 
     leagues: Mapped[list["League"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 

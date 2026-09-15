@@ -153,6 +153,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ is_admin: isAdmin }),
     }),
+  adminSetPremium: (userId: number, isPremium: boolean) =>
+    request<AdminUser>(`/api/admin/users/${userId}/premium`, {
+      method: "POST",
+      body: JSON.stringify({ is_premium: isPremium }),
+    }),
   adminGetFantasyProsKeyStatus: () => request<FantasyProsKeyStatus>("/api/admin/fantasypros-key"),
   adminSetFantasyProsKey: (apiKey: string) =>
     request<FantasyProsKeyStatus>("/api/admin/fantasypros-key", {

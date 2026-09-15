@@ -19,6 +19,7 @@ export interface User {
   id: number;
   email: string;
   is_admin: boolean;
+  is_premium: boolean;
 }
 
 export interface AdminUser {
@@ -28,6 +29,7 @@ export interface AdminUser {
   league_count: number;
   is_admin: boolean;
   admin_locked: boolean;
+  is_premium: boolean;
 }
 
 export interface FantasyProsKeyStatus {

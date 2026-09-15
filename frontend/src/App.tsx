@@ -114,7 +114,8 @@ function App() {
   }
 
   const canViewTeamTabs = league?.my_team_id != null;
-  const tabs = user.is_admin ? [...BASE_TABS, { id: "admin" as const, label: "Admin" }] : BASE_TABS;
+  const visibleBaseTabs = BASE_TABS.filter((t) => t.id !== "extra" || user.is_premium);
+  const tabs = user.is_admin ? [...visibleBaseTabs, { id: "admin" as const, label: "Admin" }] : visibleBaseTabs;
 
   return (
     <div className="app">
@@ -181,7 +182,7 @@ function App() {
         )}
         {tab === "alerts" && league && <AlertsTab leagueId={league.id} />}
         {tab === "schedule" && league && <ScheduleTab leagueId={league.id} />}
-        {tab === "extra" && league && <ExtraTab leagueId={league.id} />}
+        {tab === "extra" && league && user.is_premium && <ExtraTab leagueId={league.id} />}
         {tab === "admin" && user.is_admin && <AdminTab currentUserId={user.id} />}
       </main>
     </div>

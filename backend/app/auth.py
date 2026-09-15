@@ -111,6 +111,14 @@ def is_admin(user: User) -> bool:
     return user.email.lower() in settings.admin_email_list or user.admin_granted
 
 
+def has_premium_access(user: User) -> bool:
+    """Premium features (currently just the Extra tab) — granted directly
+    via User.is_premium (an admin toggle, see main.py's admin_set_premium),
+    or implied by admin access since admins already bypass every other
+    gate in this app."""
+    return is_admin(user) or user.is_premium
+
+
 def is_admin_locked(user: User) -> bool:
     """True when admin status comes from ADMIN_EMAILS (backend/.env), not
     the database — those accounts can't be un-admin'd from the Admin tab,

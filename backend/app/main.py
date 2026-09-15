@@ -14,6 +14,7 @@ from app.auth import (
     client_ip,
     create_access_token,
     get_current_user,
+    has_premium_access,
     hash_password,
     is_admin,
     is_admin_locked,
@@ -44,6 +45,7 @@ from app.schemas import (
     ResetPasswordRequest,
     SetAdminRequest,
     SetMyTeamRequest,
+    SetPremiumRequest,
     SyncRequest,
     TokenResponse,
     TradeGradeRequest,
@@ -108,7 +110,12 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
 @app.get("/api/auth/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
-    return {"id": current_user.id, "email": current_user.email, "is_admin": is_admin(current_user)}
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "is_admin": is_admin(current_user),
+        "is_premium": has_premium_access(current_user),
+    }
 
 
 @app.post("/api/auth/change-password", status_code=204)
@@ -136,6 +143,7 @@ def _admin_user_out(u: User, league_count: int) -> AdminUserOut:
         league_count=league_count,
         is_admin=is_admin(u),
         admin_locked=is_admin_locked(u),
+        is_premium=u.is_premium,
     )
 
 
@@ -216,6 +224,25 @@ def admin_set_admin(
             detail="This account's admin access is set via ADMIN_EMAILS in backend/.env, not toggleable here.",
         )
     user.admin_granted = payload.is_admin
+    db.commit()
+    db.refresh(user)
+    league_count = db.query(func.count(League.id)).filter(League.user_id == user.id).scalar() or 0
+    return _admin_user_out(user, league_count)
+
+
+@app.post("/api/admin/users/{user_id}/premium", response_model=AdminUserOut)
+def admin_set_premium(
+    user_id: int,
+    payload: SetPremiumRequest,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """Grant or revoke premium access (currently just the Extra tab) for an
+    account — see User.is_premium and auth.has_premium_access()."""
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_premium = payload.is_premium
     db.commit()
     db.refresh(user)
     league_count = db.query(func.count(League.id)).filter(League.user_id == user.id).scalar() or 0
