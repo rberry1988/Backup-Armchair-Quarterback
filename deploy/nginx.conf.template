@@ -15,6 +15,13 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        # The Admin tab's self-update endpoint runs git pull + npm install +
+        # npm run build inline before responding, which can take a couple of
+        # minutes on a cold node_modules cache — well past nginx's 60s
+        # default. Every other request here finishes in well under a second,
+        # so a generous ceiling costs nothing.
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
     }
 
     location / {

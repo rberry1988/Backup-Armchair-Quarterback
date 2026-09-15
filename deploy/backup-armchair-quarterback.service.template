@@ -8,7 +8,12 @@ User=__APP_USER__
 Group=__APP_USER__
 WorkingDirectory=__APP_DIR__/backend
 ExecStart=__APP_DIR__/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
-Restart=on-failure
+# always (not on-failure): the Admin tab's self-update deliberately exits
+# cleanly (status 0) after pulling new code, relying on this to bring the
+# process back up running it — see app/deploy_service.py. A deliberate
+# `systemctl stop` still stops it for good; systemd doesn't restart a unit
+# that was stopped on purpose regardless of this setting.
+Restart=always
 RestartSec=5
 
 # Basic hardening — the service only needs to read/write its own app

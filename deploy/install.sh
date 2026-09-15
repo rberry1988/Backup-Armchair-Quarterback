@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 # Deploys Backup Armchair Quarterback to the current machine (an Ubuntu
 # Proxmox LXC container or any Ubuntu/Debian host) as a systemd service
-# behind nginx. Safe to re-run after a `git pull` to deploy an update —
-# it won't touch an existing backend/.env or the SQLite database.
+# behind nginx. Safe to re-run — it won't touch an existing backend/.env
+# or the SQLite database, and picks up new commits, dependencies, and a
+# rebuilt frontend each time.
 #
 # Usage: clone this repo somewhere (e.g. ~/backup-armchair-quarterback),
 # then run: sudo bash deploy/install.sh
+# That original clone (SOURCE_DIR below) only matters for the very first
+# run, to learn which remote/branch to deploy — the actual app directory
+# ($APP_DIR, /opt/backup-armchair-quarterback) becomes its own independent
+# git checkout from then on, which is what lets it update itself later
+# (see the Admin tab's Update button).
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -18,9 +24,9 @@ APP_USER="baq"
 APP_DIR="/opt/${APP_NAME}"
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-echo "==> Installing system packages (node, nginx, rsync)"
+echo "==> Installing system packages (node, nginx)"
 apt-get update -qq
-apt-get install -y -qq nodejs npm nginx rsync
+apt-get install -y -qq nodejs npm nginx
 
 # Pin the backend to a specific Python version rather than trusting
 # whatever `python3` the OS happens to default to. A brand-new default
@@ -56,20 +62,37 @@ else
     usermod --home "$APP_DIR" "$APP_USER" 2>/dev/null || true
 fi
 
-echo "==> Syncing app source to $APP_DIR"
-mkdir -p "$APP_DIR"
-# No --delete: backend/.env and backend/data (the SQLite db + nflverse
-# cache) live only in the destination, never in the source checkout, so
-# --delete would wipe them on every re-run. Leftover stale files from old
-# checkouts are a non-issue for how this app is deployed.
-rsync -a \
-    --exclude 'backend/.venv' \
-    --exclude 'backend/data' \
-    --exclude '__pycache__' \
-    --exclude 'frontend/node_modules' \
-    --exclude 'frontend/dist' \
-    --exclude '.git' \
-    "$SOURCE_DIR"/ "$APP_DIR"/
+echo "==> Setting up app directory at $APP_DIR"
+# $APP_DIR is a git checkout in its own right (not a copy synced from
+# $SOURCE_DIR) specifically so the running app can update itself later
+# via a plain `git pull` in a directory it already owns — see the Admin
+# tab's Update button / app/deploy_service.py. That needs no new
+# permissions beyond what this service already has.
+if [ -d "$APP_DIR/.git" ]; then
+    echo "    Already a git checkout — pulling the latest commit"
+    git -C "$APP_DIR" pull --ff-only
+elif [ -d "$APP_DIR" ] && [ -n "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
+    echo "    Found an existing install from before this script deployed via git clone."
+    echo "    Migrating it in place: backend/.env and backend/data are kept, everything"
+    echo "    else is replaced by a fresh clone (deployed code was always meant to just"
+    echo "    be a checkout, so nothing else there is expected to differ from git)."
+    PRESERVE_DIR="$(mktemp -d)"
+    [ -f "$APP_DIR/backend/.env" ] && mv "$APP_DIR/backend/.env" "$PRESERVE_DIR/env"
+    [ -d "$APP_DIR/backend/data" ] && mv "$APP_DIR/backend/data" "$PRESERVE_DIR/data"
+    rm -rf "$APP_DIR"
+    REMOTE_URL="$(git -C "$SOURCE_DIR" remote get-url origin)"
+    BRANCH="$(git -C "$SOURCE_DIR" rev-parse --abbrev-ref HEAD)"
+    git clone --branch "$BRANCH" "$REMOTE_URL" "$APP_DIR"
+    mkdir -p "$APP_DIR/backend"
+    [ -f "$PRESERVE_DIR/env" ] && mv "$PRESERVE_DIR/env" "$APP_DIR/backend/.env"
+    [ -d "$PRESERVE_DIR/data" ] && mv "$PRESERVE_DIR/data" "$APP_DIR/backend/data"
+    rm -rf "$PRESERVE_DIR"
+else
+    REMOTE_URL="$(git -C "$SOURCE_DIR" remote get-url origin)"
+    BRANCH="$(git -C "$SOURCE_DIR" rev-parse --abbrev-ref HEAD)"
+    echo "    Cloning $REMOTE_URL ($BRANCH) into $APP_DIR"
+    git clone --branch "$BRANCH" "$REMOTE_URL" "$APP_DIR"
+fi
 
 echo "==> Setting ownership"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
@@ -94,22 +117,60 @@ sudo -u "$APP_USER" "$APP_DIR/backend/.venv/bin/pip" install -q --upgrade pip
 sudo -u "$APP_USER" "$APP_DIR/backend/.venv/bin/pip" install -q -r "$APP_DIR/backend/requirements.txt"
 
 echo "==> Preparing backend/.env"
+FRESH_INSTALL=0
 if [ ! -f "$APP_DIR/backend/.env" ]; then
+    FRESH_INSTALL=1
     JWT_SECRET="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
     sudo -u "$APP_USER" tee "$APP_DIR/backend/.env" > /dev/null <<EOF
 DATABASE_URL=sqlite:///./data/fantasy.db
 JWT_SECRET=${JWT_SECRET}
 CORS_ORIGINS=http://localhost
+ENABLE_SELF_UPDATE=true
+ADMIN_EMAILS=admin@example.com
 EOF
     echo "    Generated a new JWT_SECRET in $APP_DIR/backend/.env"
 else
     echo "    Found existing backend/.env — leaving it as-is"
+    # Self-update is safe specifically because this script now deploys via
+    # a git checkout it owns (see above) — add it to an existing .env from
+    # before that was true only if it's not already set either way, so a
+    # deliberate ENABLE_SELF_UPDATE=false from an admin is never overridden.
+    if ! grep -q '^ENABLE_SELF_UPDATE=' "$APP_DIR/backend/.env"; then
+        echo "ENABLE_SELF_UPDATE=true" | sudo -u "$APP_USER" tee -a "$APP_DIR/backend/.env" > /dev/null
+        echo "    Added ENABLE_SELF_UPDATE=true (new since your last install)"
+    fi
+    # No ADMIN_EMAILS backfill here on purpose — this branch means you've
+    # already been through setup once, so whatever admin(s) you already
+    # configured (or deliberately didn't) stands; a fresh install is the
+    # only time it's safe to assume nobody's an admin yet.
 fi
 # Holds the session signing key and any API keys, so keep it readable only
 # by the service account rather than every local user on the box.
 chmod 600 "$APP_DIR/backend/.env"
 chown "$APP_USER:$APP_USER" "$APP_DIR/backend/.env"
 sudo -u "$APP_USER" mkdir -p "$APP_DIR/backend/data"
+
+ADMIN_EMAIL=""
+ADMIN_PASSWORD=""
+if [ "$FRESH_INSTALL" = "1" ]; then
+    echo "==> Creating a default admin account"
+    BOOTSTRAP_RESULT="$(cd "$APP_DIR/backend" && sudo -u "$APP_USER" "$APP_DIR/backend/.venv/bin/python3" -m app.bootstrap_admin)"
+    case "$BOOTSTRAP_RESULT" in
+        created:*)
+            ADMIN_EMAIL="$(echo "$BOOTSTRAP_RESULT" | cut -d: -f2)"
+            ADMIN_PASSWORD="$(echo "$BOOTSTRAP_RESULT" | cut -d: -f3)"
+            echo "    Created $ADMIN_EMAIL — password printed at the end of this script"
+            ;;
+        exists:*)
+            echo "    Account already exists — leaving it as-is"
+            ;;
+        *)
+            echo "    WARNING: couldn't create a default admin account (${BOOTSTRAP_RESULT#error:})."
+            echo "    Register your own account from the login page and add its email to"
+            echo "    ADMIN_EMAILS in backend/.env instead."
+            ;;
+    esac
+fi
 
 echo "==> Building frontend (this can take a minute)"
 sudo -u "$APP_USER" bash -c "cd '$APP_DIR/frontend' && npm install --no-fund --no-audit --silent && npm run build --silent"
@@ -140,6 +201,16 @@ echo "==> Done."
 echo "    App:     http://${IP}/"
 echo "    Backend: systemctl status ${APP_NAME}"
 echo "    Logs:    journalctl -u ${APP_NAME} -f"
+if [ -n "$ADMIN_PASSWORD" ]; then
+    echo
+    echo "    Log in at http://${IP}/ with:"
+    echo "      Email:    $ADMIN_EMAIL"
+    echo "      Password: $ADMIN_PASSWORD"
+    echo "    This is shown once — write it down now. Change it from the Account tab"
+    echo "    after logging in, or reset it later via the Admin tab if you lose it."
+fi
 echo
 echo "If ufw is active, allow HTTP: sudo ufw allow 80/tcp"
-echo "To deploy an update: git pull in $SOURCE_DIR, then re-run this script."
+echo "To deploy an update: use the Admin tab's Update button (needs ENABLE_SELF_UPDATE=true"
+echo "in backend/.env — see README), or manually: git -C $APP_DIR pull --ff-only, then"
+echo "re-run this script to pick up any new dependencies."

@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     # admin to set it on the first account, which is a bootstrapping problem
     # this sidesteps entirely — you just list your own email here.
     admin_emails: str = ""
+    # Lets an admin trigger a git pull + dependency/frontend rebuild +
+    # restart from the Admin tab, instead of SSHing in to run install.sh
+    # by hand. Off by default: it's meaningfully more powerful than
+    # anything else behind the admin gate (it runs whatever code the next
+    # commit contains), and only does anything useful when deploy/install.sh
+    # actually deployed this instance as a git checkout it owns — see
+    # app/deploy_service.py. install.sh turns this on itself.
+    enable_self_update: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

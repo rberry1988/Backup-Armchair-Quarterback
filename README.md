@@ -131,9 +131,12 @@ sudo bash deploy/install.sh
 
 (That branch name is this project's current home — swap it for `main` once/if this gets merged there.)
 
-The script installs Python/Node/nginx, builds the frontend, generates a
-random `JWT_SECRET` into `backend/.env` (only on first run — it won't
-overwrite one that already exists), and sets up:
+The script clones this repo directly into `/opt/backup-armchair-quarterback`
+(not a copy — an independent git checkout, which is what lets the Admin
+tab's Update button pull its own updates later), installs Python/Node/nginx,
+builds the frontend, generates a random `JWT_SECRET` and a default admin
+account into `backend/.env` (only on first run — it won't overwrite either
+if they already exist), and sets up:
 
 - A systemd service (`backup-armchair-quarterback`) running the backend
   under a dedicated `baq` system user, bound to `127.0.0.1:8000` only.
@@ -141,8 +144,19 @@ overwrite one that already exists), and sets up:
   `/api/` to the backend — the frontend and API share one origin, so no
   CORS configuration is needed in this setup.
 
-When it finishes it prints the container's IP — open `http://<that-ip>/`
-from any browser on your network.
+When it finishes it prints the container's IP and a one-time admin login
+— open `http://<that-ip>/` from any browser on your network and sign in
+with those, e.g.:
+
+```
+    App:     http://192.168.1.50/
+    ...
+    Log in at http://192.168.1.50/ with:
+      Email:    admin@example.com
+      Password: aB3dEfGh9k
+    This is shown once — write it down now. Change it from the Account tab
+    after logging in, or reset it later via the Admin tab if you lose it.
+```
 
 **3. Managing it**
 
@@ -152,10 +166,16 @@ sudo systemctl restart backup-armchair-quarterback  # after editing backend/.env
 journalctl -u backup-armchair-quarterback -f        # live logs
 ```
 
-**To deploy an update:** `git pull` inside the cloned repo, then re-run
-`sudo bash deploy/install.sh` — it's safe to re-run; it won't touch your
-existing `backend/.env` or the SQLite database, and it restarts the
-service with the new code at the end.
+**To deploy an update**, either:
+
+- Click **Update App** in the Admin tab (needs `ENABLE_SELF_UPDATE=true` in
+  `backend/.env` — on by default for a fresh install via this script). It
+  pulls, reinstalls, rebuilds, and restarts itself; see "Self-updating from
+  the Admin tab" below for what that actually does and its limits.
+- Or manually: `sudo git -C /opt/backup-armchair-quarterback pull --ff-only`,
+  then re-run `sudo bash deploy/install.sh` to pick up any new dependencies
+  and rebuild — safe to re-run any time, it won't touch your existing
+  `backend/.env` or the SQLite database.
 
 **Notes:**
 
@@ -168,6 +188,12 @@ service with the new code at the end.
   older checkout of this script, `git pull` and re-run
   `sudo bash deploy/install.sh`: it detects a venv built on the wrong
   Python version and rebuilds it automatically.
+- If your existing install predates this script deploying via git clone
+  (it used to `rsync` a copy from wherever you'd cloned it, excluding
+  `.git`), re-running install.sh migrates it automatically: `backend/.env`
+  and `backend/data` are kept, everything else is replaced by a fresh
+  clone. This is also what makes the Admin tab's Update button possible —
+  it needs `/opt/backup-armchair-quarterback` to actually be a git checkout.
 - If `ufw` is enabled in the container, allow HTTP: `sudo ufw allow
   80/tcp`. If the Proxmox host firewall is also enabled for this CT,
   allow port 80 there too.
@@ -181,6 +207,10 @@ service with the new code at the end.
   preserving across a container rebuild.
 
 ## Using it
+
+If you deployed via `install.sh`, log in with the admin account it printed
+at the end instead of registering (see above) — it's already set up as an
+admin, so you can skip straight to step 2.
 
 1. Register an account on the login screen (just an email + password —
    this is a local account, unrelated to your ESPN login).
@@ -213,6 +243,16 @@ Set `ADMIN_EMAILS` in `backend/.env` (comma-separated, case-insensitive) to
 get an **Admin** tab, visible only to those accounts, for managing who else
 can use this instance — an alternative to everyone self-registering.
 
+- A fresh install via `install.sh` does this for you automatically: it
+  creates an `admin@example.com` account with a random 10-character
+  password (printed once at the end of the script — see above) and adds
+  it to `ADMIN_EMAILS`, so there's someone who can log in and set everything
+  else up without a chicken-and-egg problem. `admin` is the login's local
+  part (`admin@...`) rather than a bare username, since the login form
+  validates real email address syntax and rejects `admin@localhost`-style
+  addresses. This only happens once, on a genuinely fresh install — an
+  existing `backend/.env` is never touched, so re-running the script never
+  creates a surprise second admin.
 - **Add a person**: enter an email and a password (8+ characters) and share
   it with them directly — there's no invite email, so pick something you're
   comfortable telling them. They can change it themselves afterward from
@@ -235,6 +275,45 @@ can use this instance — an alternative to everyone self-registering.
   `ADMIN_EMAILS` to take effect. Public self-registration
   (`/api/auth/register`) still works alongside this unless you also take it
   out of the login page yourself.
+
+## Self-updating from the Admin tab
+
+The **Update App** button (Admin tab, needs `ADMIN_EMAILS` set) is the
+in-app equivalent of SSHing in and running `git pull && sudo bash
+deploy/install.sh` by hand: it pulls the latest commit, reinstalls any
+changed dependencies, rebuilds the frontend, then restarts the backend to
+actually run the new code — all from one click, all in one request (which
+can take a couple of minutes on a cold `npm install`; the button shows a
+spinner and then polls until the backend comes back).
+
+- **Off by default.** Set `ENABLE_SELF_UPDATE=true` in `backend/.env` to
+  turn it on — a fresh install via `install.sh` does this automatically,
+  since it's exactly the environment this needs (see below); anyone who
+  set up `.env` by hand needs to opt in deliberately. It's meaningfully
+  more powerful than anything else behind the admin gate, since it runs
+  whatever code the next commit happens to contain.
+- **Only works on the standard deployment.** It needs
+  `/opt/backup-armchair-quarterback` to be its own git checkout that the
+  `baq` service user fully owns — exactly what `install.sh` sets up (see
+  "Deploying to a Proxmox Ubuntu container" above) — so it can update
+  in place with no new permissions (no sudo, no root) beyond what the
+  service already has. Nothing to do with local dev or a hand-rolled setup;
+  there it just reports "not a git checkout" and does nothing.
+- **Refuses to clobber anything.** It pulls with `--ff-only`, so a
+  diverged or manually-modified checkout fails cleanly with the git error
+  shown in the button's output rather than force-overwriting your history.
+  If nothing's changed upstream, it says so and stops there — no rebuild,
+  no restart.
+- **No database migrations.** If a pulled change adds a new column (as
+  several already have — see "Notes and limitations" below), the restarted
+  backend will hit the same `no such column` error a manual update would;
+  the fix is the same one documented there (delete `backend/data/fantasy.db`
+  and re-sync). This button doesn't change that story, just automates
+  everything before it.
+- **A failure at any step is reported, not hidden** — the button's output
+  shows each step (git pull, pip install, npm install, npm run build) and
+  the tail of its output, so a broken pull is diagnosable from the browser
+  instead of requiring a trip to `journalctl`.
 
 ## Notes and limitations
 

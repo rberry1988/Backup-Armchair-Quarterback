@@ -23,6 +23,7 @@ from app.bench_points import get_bench_points
 from app.config import settings
 from app.consistency import get_consistency
 from app.db import get_db, init_db
+from app.deploy_service import run_update
 from app.depth_charts import compute_depth_charts, get_rb_handcuffs
 from app.espn_client import ESPNClientError
 from app.models import League, RosterEntry, Team, User
@@ -179,7 +180,16 @@ def admin_reset_password(
         raise HTTPException(status_code=404, detail="User not found")
     user.hashed_password = hash_password(payload.new_password)
     db.commit()
-    db.commit()
+
+
+@app.post("/api/admin/update")
+def admin_update(_admin: User = Depends(require_admin)):
+    if not settings.enable_self_update:
+        raise HTTPException(
+            status_code=400,
+            detail="Self-update is disabled. Set ENABLE_SELF_UPDATE=true in backend/.env to enable it.",
+        )
+    return run_update()
 
 
 # ---------------------------------------------------------------------------

@@ -28,6 +28,20 @@ export interface AdminUser {
   league_count: number;
 }
 
+export interface UpdateStep {
+  command: string;
+  ok: boolean;
+  output: string;
+}
+
+export interface UpdateResult {
+  error?: string;
+  detail?: string;
+  changed?: boolean;
+  restarting?: boolean;
+  steps?: UpdateStep[];
+}
+
 export interface LeagueSummary {
   id: number;
   espn_league_id: number;

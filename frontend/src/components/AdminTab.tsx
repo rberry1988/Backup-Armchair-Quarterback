@@ -1,6 +1,9 @@
 import { Fragment, useEffect, useState } from "react";
-import type { AdminUser } from "../types";
+import type { AdminUser, UpdateResult } from "../types";
 import { ApiError, api } from "../api";
+
+const POLL_INTERVAL_MS = 2000;
+const POLL_MAX_ATTEMPTS = 30; // ~60s — a cold uvicorn start is normally a couple seconds
 
 export function AdminTab({ currentUserId }: { currentUserId: number }) {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
@@ -16,6 +19,9 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [justResetId, setJustResetId] = useState<number | null>(null);
+
+  const [updateState, setUpdateState] = useState<"idle" | "updating" | "restarting" | "done">("idle");
+  const [updateResult, setUpdateResult] = useState<UpdateResult | null>(null);
 
   function load() {
     api
@@ -78,7 +84,44 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
     }
   }
 
+  async function handleUpdate() {
+    if (!window.confirm("Pull the latest code, rebuild, and restart? This can take a couple of minutes."))
+      return;
+    setUpdateState("updating");
+    setUpdateResult(null);
+    try {
+      const result = await api.adminUpdate();
+      setUpdateResult(result);
+      if (result.restarting) {
+        setUpdateState("restarting");
+        pollUntilBackUp();
+      } else {
+        setUpdateState("done");
+      }
+    } catch (err) {
+      setUpdateResult({
+        error: "request_failed",
+        detail: err instanceof ApiError ? err.message : "The update request failed.",
+      });
+      setUpdateState("done");
+    }
+  }
+
+  function pollUntilBackUp(attempt = 0) {
+    api
+      .me()
+      .then(() => setUpdateState("done"))
+      .catch(() => {
+        if (attempt >= POLL_MAX_ATTEMPTS) {
+          setUpdateState("done"); // give up quietly; the status text explains what to do
+          return;
+        }
+        setTimeout(() => pollUntilBackUp(attempt + 1), POLL_INTERVAL_MS);
+      });
+  }
+
   return (
+    <>
     <div className="panel">
       <h2>Admin</h2>
       <p className="hint">
@@ -190,5 +233,74 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
         </div>
       )}
     </div>
+
+      <div className="panel" style={{ marginTop: "1.25rem" }}>
+        <h2>Update</h2>
+        <p className="hint">
+          Pulls the latest committed code, reinstalls any new dependencies, rebuilds the frontend, and restarts
+          &mdash; the same steps as running install.sh by hand. Only does anything if there's a new commit to
+          pull; disabled entirely unless <code>ENABLE_SELF_UPDATE=true</code> is set in <code>backend/.env</code>.
+        </p>
+        <button onClick={handleUpdate} disabled={updateState === "updating" || updateState === "restarting"}>
+          {updateState === "updating"
+            ? "Pulling and rebuilding..."
+            : updateState === "restarting"
+              ? "Restarting..."
+              : "Update App"}
+        </button>
+
+        {updateResult && (
+          <div style={{ marginTop: "0.75rem" }}>
+            {updateResult.error === "request_failed" && <p className="error">{updateResult.detail}</p>}
+            {updateResult.error === "not_a_git_checkout" && <p className="error">{updateResult.detail}</p>}
+            {updateResult.error &&
+              !["request_failed", "not_a_git_checkout"].includes(updateResult.error) && (
+                <p className="error">
+                  Failed at: {updateResult.error.replace(/_/g, " ")}. See the step output below.
+                </p>
+              )}
+            {updateResult.changed === false && <p className="success">Already up to date &mdash; nothing to do.</p>}
+            {updateResult.changed && updateResult.restarting && updateState === "restarting" && (
+              <p className="hint">Update applied. Waiting for the backend to come back...</p>
+            )}
+            {updateResult.changed && updateResult.restarting && updateState === "done" && (
+              <p className="success">
+                Update complete and the app has restarted.{" "}
+                <button type="button" onClick={() => window.location.reload()}>
+                  Reload page
+                </button>
+              </p>
+            )}
+
+            {updateResult.steps && updateResult.steps.some((s) => !s.ok) && (
+              <div className="table-scroll" style={{ marginTop: "0.5rem" }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Step</th>
+                      <th>Result</th>
+                      <th>Output</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {updateResult.steps.map((step, i) => (
+                      <tr key={i}>
+                        <td className="hint">{step.command}</td>
+                        <td className={step.ok ? "success" : "error"}>{step.ok ? "ok" : "failed"}</td>
+                        <td>
+                          <pre style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: "0.75rem" }}>
+                            {step.output || "(no output)"}
+                          </pre>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

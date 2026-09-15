@@ -13,6 +13,7 @@ import type {
   TeamWithRoster,
   TradeGradeResponse,
   TradeResponse,
+  UpdateResult,
   User,
   WaiverResponse,
 } from "./types";
@@ -138,4 +139,5 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ new_password: newPassword }),
     }),
+  adminUpdate: () => request<UpdateResult>("/api/admin/update", { method: "POST" }),
 };
