@@ -597,6 +597,10 @@ def teams_with_rosters(
                     "name": e.player.full_name,
                     "position": e.player.position,
                     "projected_points": e.player.projected_points,
+                    # Lets the Trade Grader list players in the same lineup
+                    # order as the Roster and Start/Sit tabs.
+                    "slot": e.lineup_slot,
+                    "is_starter": e.is_starter,
                 }
                 for e in entries_by_team.get(team.id, [])
             ],

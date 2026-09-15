@@ -230,6 +230,39 @@ button:disabled {
   margin-bottom: 1.5rem;
 }
 
+/* Segmented control for switching between two views of the same panel
+   (Waivers' this-week vs rest-of-season lenses). */
+.lens-toggle {
+  display: inline-flex;
+  gap: 0;
+  margin: 0.25rem 0 0.75rem;
+  border: 1px solid #3c4043;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.lens-toggle button {
+  background: #202127;
+  border: none;
+  border-radius: 0;
+  color: #9aa0a6;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
+}
+
+.lens-toggle button + button {
+  border-left: 1px solid #3c4043;
+}
+
+.lens-toggle button.active {
+  background: #2f5fa3;
+  color: #e8eaed;
+}
+
+.lens-toggle button:hover:not(.active) {
+  background: #2a2d34;
+}
+
 .partner-card {
   border: 1px solid #2a2d34;
   border-radius: 8px;

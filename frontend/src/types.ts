@@ -151,23 +151,39 @@ export interface StartSitResponse {
   swaps_recommended: number;
 }
 
+export interface WaiverAdd {
+  name: string;
+  projected_points: number | null;
+  percent_owned: number;
+  injury_status: string;
+  matchup: MatchupContext | null;
+  trend: PlayerTrend | null;
+  fantasycalc: FantasyCalcValue | null;
+}
+
 export interface WaiverSuggestion {
-  add: {
-    name: string;
-    projected_points: number | null;
-    percent_owned: number;
-    injury_status: string;
-    matchup: MatchupContext | null;
-    trend: PlayerTrend | null;
-  };
+  add: WaiverAdd;
   drop_candidate: { name: string; projected_points: number | null } | null;
   point_upgrade: number;
   suggested_faab_pct: number;
 }
 
+export interface RestOfSeasonSuggestion {
+  add: WaiverAdd;
+  drop_candidate: { name: string; fantasycalc_value: number } | null;
+  value_upgrade: number;
+}
+
+export interface WaiverGroup<T> {
+  position: string;
+  suggestions: T[];
+}
+
 export interface WaiverResponse {
   team: string;
-  recommendations: { position: string; suggestions: WaiverSuggestion[] }[];
+  this_week: WaiverGroup<WaiverSuggestion>[];
+  rest_of_season: WaiverGroup<RestOfSeasonSuggestion>[];
+  fantasycalc_available: boolean;
 }
 
 export interface TradeResponse {
@@ -186,6 +202,8 @@ export interface RosterPickerPlayer {
   name: string;
   position: string;
   projected_points: number | null;
+  slot: string;
+  is_starter: boolean;
 }
 
 export interface TeamWithRoster {

@@ -69,11 +69,25 @@ def _adjusted_value(player: Player, trend: dict | None, matchup_ctx: dict | None
 
 
 def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int = 5) -> dict:
+    """Two different questions, answered separately.
+
+    "This week" ranks by the trend/matchup-adjusted projection — who helps
+    you win on Sunday. "Rest of season" ranks by FantasyCalc's market trade
+    value, which is a consensus read on a player's worth for the remainder
+    of the season rather than one week of it. They deliberately disagree:
+    the best streamer this week is often not the best asset to hold, and a
+    valuable stash frequently has a poor or missing projection right now.
+    """
     team = get_my_team(db, league_id, my_team_id)
     if team is None:
         return {"error": "team_not_found"}
 
     league = db.get(League, league_id)
+    fc_values = (league.fantasycalc_values or {}) if league else {}
+
+    def fc_value(player: Player) -> int:
+        entry = fc_values.get(str(player.espn_player_id)) or {}
+        return entry.get("value") or 0
 
     my_entries = roster_with_players(db, team.id)
     my_players_by_position: dict[str, list[Player]] = {pos: [] for pos in POSITIONS}
@@ -89,40 +103,52 @@ def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int 
     )
     free_agents = [p for p in free_agents if p.espn_player_id not in my_rostered_espn_ids]
 
-    # Pass 1: a rough, points-only pre-filter per position, wide enough
-    # (top_n * 3) that a player trending up but not yet leading on raw
-    # points still has a shot at making the final cut once trend/matchup
-    # are factored in below -- while still bounding the batched
-    # trend/consistency lookups to a reasonable pool instead of the whole
-    # free-agent list.
-    pool_by_position: dict[str, tuple[list[Player], Player | None]] = {}
+    # Pass 1: a rough pre-filter per position, wide enough (top_n * 3) that
+    # a player trending up but not yet leading on raw points still has a
+    # shot at the final cut once trend/matchup are factored in below --
+    # while still bounding the batched trend/consistency lookups to a
+    # reasonable pool instead of the whole free-agent list.
+    #
+    # The two lenses need separate pools: pre-filtering the rest-of-season
+    # list by projected points would throw away exactly the players it
+    # exists to surface -- high-value assets whose current-week projection
+    # is low or missing.
+    week_pools: dict[str, tuple[list[Player], Player | None]] = {}
+    ros_pools: dict[str, tuple[list[Player], Player | None]] = {}
     for position in POSITIONS:
-        my_players = sorted(
-            my_players_by_position.get(position, []),
-            key=lambda p: points_or_default(p),
+        mine = my_players_by_position.get(position, [])
+        weakest_by_points = min(mine, key=points_or_default) if mine else None
+        weakest_by_value = min(mine, key=fc_value) if mine else None
+
+        at_position = [p for p in free_agents if p.position == position]
+
+        # Injured-out players can't help this week, but for rest-of-season
+        # they're often the whole point of the pickup, so they stay in.
+        week_candidates = sorted(
+            (p for p in at_position if p.injury_status not in INJURED_OUT_STATUSES),
+            key=points_or_default,
             reverse=True,
-        )
-        weakest_rostered = my_players[-1] if my_players else None
+        )[: top_n * 3]
+        if week_candidates:
+            week_pools[position] = (week_candidates, weakest_by_points)
 
-        candidates = [p for p in free_agents if p.position == position and p.injury_status not in INJURED_OUT_STATUSES]
-        candidates.sort(key=lambda p: points_or_default(p), reverse=True)
-        pool = candidates[: top_n * 3]
-        if pool:
-            pool_by_position[position] = (pool, weakest_rostered)
+        ros_candidates = [p for p in sorted(at_position, key=fc_value, reverse=True) if fc_value(p) > 0][: top_n * 3]
+        if ros_candidates:
+            ros_pools[position] = (ros_candidates, weakest_by_value)
 
-    # One batched query each for every player across every position's pool
-    # (plus each position's weakest rostered player, needed to compute an
-    # apples-to-apples adjusted baseline) instead of one per candidate.
+    # One batched query each across both pools (plus the rostered players
+    # the baselines compare against) instead of one per candidate.
     lookup_players: list[Player] = []
-    for pool, weakest_rostered in pool_by_position.values():
-        lookup_players.extend(pool)
-        if weakest_rostered is not None:
-            lookup_players.append(weakest_rostered)
-    lookup_ids = [(p.espn_player_id, p.position) for p in lookup_players]
-    lookup_espn_ids = [p.espn_player_id for p in lookup_players]
+    for pools in (week_pools, ros_pools):
+        for pool, weakest in pools.values():
+            lookup_players.extend(pool)
+            if weakest is not None:
+                lookup_players.append(weakest)
+    seen: set[int] = set()
+    deduped = [p for p in lookup_players if not (p.espn_player_id in seen or seen.add(p.espn_player_id))]
 
-    trends = get_player_trends(db, league_id, lookup_ids)
-    consistency = get_consistency(db, league_id, lookup_espn_ids)
+    trends = get_player_trends(db, league_id, [(p.espn_player_id, p.position) for p in deduped])
+    consistency = get_consistency(db, league_id, [p.espn_player_id for p in deduped])
 
     def matchup_for(player: Player) -> dict | None:
         return get_matchup_context(league, player.pro_team_id, player.position) if league else None
@@ -135,30 +161,32 @@ def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int 
             consistency.get(player.espn_player_id),
         )
 
-    results = []
-    for position, (pool, weakest_rostered) in pool_by_position.items():
-        baseline = value_for(weakest_rostered) if weakest_rostered else 0.0
+    def add_payload(candidate: Player) -> dict:
+        return {
+            "name": candidate.full_name,
+            "projected_points": candidate.projected_points,
+            "percent_owned": round(candidate.percent_owned, 1),
+            "injury_status": candidate.injury_status,
+            "matchup": matchup_for(candidate),
+            "trend": trends.get(candidate.espn_player_id),
+            "fantasycalc": fc_values.get(str(candidate.espn_player_id)),
+        }
 
-        ranked = sorted(pool, key=value_for, reverse=True)
+    this_week = []
+    for position, (pool, weakest) in week_pools.items():
+        baseline = value_for(weakest) if weakest else 0.0
         suggestions = []
-        for candidate in ranked:
+        for candidate in sorted(pool, key=value_for, reverse=True):
             candidate_value = value_for(candidate)
-            if weakest_rostered is not None and candidate_value <= baseline:
+            if weakest is not None and candidate_value <= baseline:
                 continue
             point_upgrade = round(candidate_value - baseline, 1)
             suggestions.append(
                 {
-                    "add": {
-                        "name": candidate.full_name,
-                        "projected_points": candidate.projected_points,
-                        "percent_owned": round(candidate.percent_owned, 1),
-                        "injury_status": candidate.injury_status,
-                        "matchup": matchup_for(candidate),
-                        "trend": trends.get(candidate.espn_player_id),
-                    },
+                    "add": add_payload(candidate),
                     "drop_candidate": (
-                        {"name": weakest_rostered.full_name, "projected_points": weakest_rostered.projected_points}
-                        if weakest_rostered
+                        {"name": weakest.full_name, "projected_points": weakest.projected_points}
+                        if weakest
                         else None
                     ),
                     "point_upgrade": point_upgrade,
@@ -168,6 +196,38 @@ def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int 
             if len(suggestions) >= top_n:
                 break
         if suggestions:
-            results.append({"position": position, "suggestions": suggestions})
+            this_week.append({"position": position, "suggestions": suggestions})
 
-    return {"team": team.name, "recommendations": results}
+    rest_of_season = []
+    for position, (pool, weakest) in ros_pools.items():
+        baseline = fc_value(weakest) if weakest else 0
+        suggestions = []
+        for candidate in pool:
+            if weakest is not None and fc_value(candidate) <= baseline:
+                continue
+            suggestions.append(
+                {
+                    "add": add_payload(candidate),
+                    "drop_candidate": (
+                        {"name": weakest.full_name, "fantasycalc_value": baseline} if weakest else None
+                    ),
+                    # No FAAB suggestion here on purpose: the existing one is
+                    # calibrated against a projected-points upgrade, and
+                    # inventing a second mapping from market value to bid %
+                    # would be a made-up number dressed up as advice.
+                    "value_upgrade": fc_value(candidate) - baseline,
+                }
+            )
+            if len(suggestions) >= top_n:
+                break
+        if suggestions:
+            rest_of_season.append({"position": position, "suggestions": suggestions})
+
+    return {
+        "team": team.name,
+        "this_week": this_week,
+        "rest_of_season": rest_of_season,
+        # Lets the UI explain an empty rest-of-season list ("re-sync to pull
+        # market values") instead of just showing nothing.
+        "fantasycalc_available": bool(fc_values),
+    }

@@ -5,7 +5,7 @@ import { TrendTag } from "./TrendTag";
 import { PositionTag } from "./PositionTag";
 import { InjuryBadge } from "./InjuryBadge";
 import { formatPoints } from "../formatPoints";
-import { starterSlotRank } from "../lineupSlotOrder";
+import { byLineupOrder } from "../lineupSlotOrder";
 
 type SortKey = "default" | "name" | "projected_points" | "fantasycalc_value";
 
@@ -19,20 +19,8 @@ function fantasyCalcValue(p: RosterPlayer): number {
   return p.fantasycalc?.value ?? -Infinity;
 }
 
-function defaultRosterOrder(roster: RosterPlayer[]): RosterPlayer[] {
-  const byProjDesc = (a: RosterPlayer, b: RosterPlayer) => (b.projected_points ?? -Infinity) - (a.projected_points ?? -Infinity);
-  const starters = roster
-    .filter((p) => p.is_starter)
-    .sort((a, b) => {
-      const rankDiff = starterSlotRank(a.slot) - starterSlotRank(b.slot);
-      return rankDiff !== 0 ? rankDiff : byProjDesc(a, b);
-    });
-  const bench = roster.filter((p) => !p.is_starter).sort(byProjDesc);
-  return [...starters, ...bench];
-}
-
 function sortRoster(roster: RosterPlayer[], key: SortKey, dir: "asc" | "desc"): RosterPlayer[] {
-  if (key === "default") return defaultRosterOrder(roster);
+  if (key === "default") return byLineupOrder(roster);
   const sorted = [...roster].sort((a, b) => {
     if (key === "name") return a.name.localeCompare(b.name);
     if (key === "fantasycalc_value") return fantasyCalcValue(a) - fantasyCalcValue(b);

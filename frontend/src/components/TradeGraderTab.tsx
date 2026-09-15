@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import type { TeamWithRoster, TradeGradePlayer, TradeGradeResponse, TradeGradeSide } from "../types";
+import type { RosterPickerPlayer, TeamWithRoster, TradeGradePlayer, TradeGradeResponse, TradeGradeSide } from "../types";
 import { ApiError, api } from "../api";
 import { PositionTag } from "./PositionTag";
 import { formatPoints } from "../formatPoints";
+import { byLineupOrder, starterSlotRank } from "../lineupSlotOrder";
 
 export function TradeGraderTab({ leagueId, myTeamId }: { leagueId: number; myTeamId: number | null }) {
   const [teams, setTeams] = useState<TeamWithRoster[] | null>(null);
@@ -135,10 +136,13 @@ function TeamSide({
   selectedTeamId: number | null;
   onTeamChange: (id: number) => void;
   otherTeamId: number | null;
-  roster: { espn_player_id: number; name: string; position: string; projected_points: number | null }[];
+  roster: RosterPickerPlayer[];
   selected: Set<number>;
   onToggle: (playerId: number) => void;
 }) {
+  // Same lineup order as the Roster and Start/Sit tabs, so a roster reads
+  // the same way everywhere instead of in ESPN's raw order here.
+  const orderedRoster = byLineupOrder(roster);
   return (
     <div className="trade-side">
       <label>
@@ -152,7 +156,7 @@ function TeamSide({
         </select>
       </label>
       <ul className="player-checklist">
-        {roster.map((p) => (
+        {orderedRoster.map((p) => (
           <li key={p.espn_player_id}>
             <label>
               <input
@@ -196,9 +200,13 @@ function TradeResultSide({ side }: { side: TradeGradeSide }) {
 const ECR_ARROW: Record<string, string> = { up: "↑", down: "↓", steady: "→" };
 
 function PlayerList({ players }: { players: TradeGradePlayer[] }) {
+  // Graded players carry a position but no lineup slot (they're whoever was
+  // picked, not a filled lineup), so order by position using the same rank
+  // table — QB, RB, WR, TE, D/ST, K.
+  const ordered = [...players].sort((a, b) => starterSlotRank(a.position) - starterSlotRank(b.position));
   return (
     <>
-      {players.map((p, i) => (
+      {ordered.map((p, i) => (
         <span key={p.espn_player_id}>
           {i > 0 && ", "}
           {p.name} ({p.ros_value})

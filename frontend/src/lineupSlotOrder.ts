@@ -19,3 +19,26 @@ export const STARTER_SLOT_ORDER: Record<string, number> = {
 export function starterSlotRank(slot: string): number {
   return STARTER_SLOT_ORDER[slot] ?? 99;
 }
+
+/** The fields the lineup ordering depends on — satisfied by both a roster
+ * row and the Trade Grader's player-picker entries. */
+export interface SlottedPlayer {
+  slot: string;
+  is_starter: boolean;
+  projected_points: number | null;
+}
+
+/** Starters first in lineup-slot order (ties inside a duplicated slot, e.g.
+ * both RB spots, broken by projected points), then bench by projected
+ * points. Shared so every tab lists a roster the same way. */
+export function byLineupOrder<T extends SlottedPlayer>(players: T[]): T[] {
+  const byProjDesc = (a: T, b: T) => (b.projected_points ?? -Infinity) - (a.projected_points ?? -Infinity);
+  const starters = players
+    .filter((p) => p.is_starter)
+    .sort((a, b) => {
+      const rankDiff = starterSlotRank(a.slot) - starterSlotRank(b.slot);
+      return rankDiff !== 0 ? rankDiff : byProjDesc(a, b);
+    });
+  const bench = players.filter((p) => !p.is_starter).sort(byProjDesc);
+  return [...starters, ...bench];
+}
