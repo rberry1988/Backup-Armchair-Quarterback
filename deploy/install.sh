@@ -46,6 +46,15 @@ if [ -z "$PYTHON_BIN" ]; then
     echo "    Neither python3.12 nor python3.11 available from apt; falling back to python3"
     apt-get install -y -qq python3 python3-venv python3-pip
     PYTHON_BIN=python3
+    # This is exactly the case the comment above warns about: the OS's own
+    # python3 may be too new for prebuilt wheels of our pinned deps
+    # (pydantic-core in particular). pip then tries to compile it, which
+    # needs Rust — installing a real toolchain via apt here means pip finds
+    # it on PATH and uses it directly, instead of falling back to its own
+    # in-process Rust downloader (which stages files under $HOME/.cache and
+    # has been seen to crash outright if that directory doesn't exist yet).
+    echo "    Also installing a Rust toolchain in case any dependency needs to compile from source"
+    apt-get install -y -qq rustc cargo
 fi
 echo "    Using $PYTHON_BIN for the backend virtualenv"
 
