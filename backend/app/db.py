@@ -1,6 +1,6 @@
 import os
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import settings
@@ -46,7 +46,22 @@ def get_db():
         db.close()
 
 
+def _ensure_column(conn, table: str, column: str, ddl: str) -> None:
+    """Adds `column` to `table` if it isn't there yet. Base.metadata.create_all()
+    below only creates whole new tables — it never alters one that already
+    exists — so a column added to a model after real installs already have
+    that table on disk needs to be backfilled here, or every request
+    touching it 500s with "no such column"."""
+    existing = {row[1] for row in conn.execute(text(f'PRAGMA table_info("{table}")'))}
+    if column not in existing:
+        conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN {column} {ddl}'))
+
+
 def init_db():
     from app import models  # noqa: F401  (ensure models are registered)
 
     Base.metadata.create_all(bind=engine)
+
+    with engine.connect() as conn:
+        _ensure_column(conn, "users", "admin_granted", "BOOLEAN NOT NULL DEFAULT 0")
+        conn.commit()
