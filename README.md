@@ -54,16 +54,29 @@ teams, and scoring rules) and gives you three things every week:
   free-agent adds and trade offers you have genuinely submitted in ESPN and
   that ESPN hasn't processed yet, read live from ESPN. Needs your own ESPN
   account connected (see below). Read-only: this app never submits or
-  cancels a claim for you. Underneath it sits your own local shortlist,
-  built with the **Plan** button on any waiver recommendation.
+  cancels a claim for you, and **Refresh** re-checks ESPN on the spot.
+  Underneath it sits your own local shortlist, built with the **Plan**
+  button on any waiver recommendation.
 
 Public ESPN leagues work with no setup at all. For a **private** league,
-connect your own ESPN account under **Settings → Account**: paste the
-`espn_s2` and `SWID` cookies from a browser signed in to
-fantasy.espn.com, and this app will read ESPN as you. Those cookies are
-stored per account, used only to serve your own requests, and never sent
-back to any browser once saved. ESPN expires them every few weeks, so
-re-paste them when things start failing with 401s.
+or for real pending claims, connect your own ESPN account under
+**Settings → Account**. That page has a **Get ESPN cookies** bookmarklet:
+drag it to your bookmarks bar, click it once while signed in on
+fantasy.espn.com, and it copies your `espn_s2` and `SWID` to the
+clipboard — paste that back into the app and hit Connect. (Pasting a whole
+cookie dump works too; only those two values are picked out, in your
+browser, and only those two are sent to the server. There's a manual
+two-field fallback under "Enter them separately instead" if you'd rather
+copy them out of devtools.)
+
+A browser can't hand cookies from espn.com to another site on its own —
+that's the same-origin policy, and no app code gets around it — so the
+bookmarklet is the shortest honest path: it runs on ESPN's own page,
+reads two cookies, and sends them nowhere.
+
+Those cookies are stored per account, used only to serve your own
+requests, and never sent back to any browser once saved. ESPN expires them
+every few weeks, so re-run the bookmarklet when claims stop showing up.
 
 Multiple people can use the same instance: each person registers their own
 account and their synced league(s), team selection, and recommendations

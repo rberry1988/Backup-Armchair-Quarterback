@@ -212,6 +212,8 @@ export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremiu
   const [error, setError] = useState<string | null>(null);
   const [lens, setLens] = useState<Lens>("this-week");
   const [claims, setClaims] = useState<PendingClaimsResponse | null>(null);
+  const [claimsBusy, setClaimsBusy] = useState(false);
+  const [claimsCheckedAt, setClaimsCheckedAt] = useState<Date | null>(null);
   const [planned, setPlanned] = useState<PlannedMove[]>([]);
   const [planError, setPlanError] = useState<string | null>(null);
   const [planBusy, setPlanBusy] = useState(false);
@@ -249,18 +251,40 @@ export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremiu
       });
     // Fetched separately from the shortlist: this one goes out to ESPN, so
     // it's the slower of the two and shouldn't hold the other up.
-    api
-      .getPendingClaims(leagueId)
-      .then((res) => {
-        if (!ignore) setClaims(res);
-      })
-      .catch(() => {
-        if (!ignore) setClaims(null);
-      });
+    loadClaims(() => ignore);
     return () => {
       ignore = true;
     };
+    // loadClaims is stable for a given leagueId and only read here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leagueId, isPremium]);
+
+  /** Re-read pending claims straight from ESPN. `cancelled` lets the
+   * mount-time call drop a response that arrived after a league switch;
+   * the Refresh button passes nothing, since a click is never stale. */
+  function loadClaims(cancelled: () => boolean = () => false) {
+    setClaimsBusy(true);
+    return api
+      .getPendingClaims(leagueId)
+      .then((res) => {
+        if (cancelled()) return;
+        setClaims(res);
+        setClaimsCheckedAt(new Date());
+      })
+      .catch((e) => {
+        if (cancelled()) return;
+        // Shown in place of the table rather than thrown away: a refresh
+        // that silently does nothing is worse than one that says why.
+        setClaims({
+          connected: true,
+          claims: [],
+          error: e instanceof ApiError ? e.message : "Couldn't reach the server to check ESPN.",
+        });
+      })
+      .finally(() => {
+        if (!cancelled()) setClaimsBusy(false);
+      });
+  }
 
   async function handlePlan(s: WaiverSuggestion | RestOfSeasonSuggestion) {
     setPlanError(null);
@@ -318,7 +342,17 @@ export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremiu
         <div className="planned-moves">
           <h3>Pending Moves</h3>
 
-          <h4>Submitted in ESPN</h4>
+          <div className="claims-head">
+            <h4>Submitted in ESPN</h4>
+            <button onClick={() => loadClaims()} disabled={claimsBusy}>
+              {claimsBusy ? "Checking ESPN..." : "Refresh"}
+            </button>
+            {claimsCheckedAt && !claimsBusy && (
+              <span className="hint">
+                Checked {claimsCheckedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+              </span>
+            )}
+          </div>
           {claims === null ? (
             <p className="hint">Checking ESPN&hellip;</p>
           ) : !claims.connected ? (

@@ -549,3 +549,89 @@ button:disabled {
   border-radius: 3px;
   padding: 0 0.25rem;
 }
+
+/* Pending Moves: section heading with its Refresh control inline. */
+.claims-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.claims-head h4 {
+  margin: 0.25rem 0 0.4rem;
+}
+
+.claims-head button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+/* Settings -> Account: the three steps for getting an ESPN session here. */
+.espn-steps {
+  margin: 0.75rem 0;
+  padding-left: 1.2rem;
+  font-size: 0.8rem;
+  color: #9aa0a6;
+  line-height: 1.6;
+}
+
+.espn-steps li {
+  margin-bottom: 0.4rem;
+}
+
+.bookmarklet-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.4rem 0;
+}
+
+/* Looks like the draggable thing it is, not like body text. */
+.bookmarklet {
+  display: inline-block;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid #3c4043;
+  border-radius: 6px;
+  background: #202127;
+  color: #8ab4f8;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: grab;
+}
+
+.bookmarklet:active {
+  cursor: grabbing;
+}
+
+.espn-paste-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: #9aa0a6;
+}
+
+.espn-paste-label textarea {
+  font-size: 0.8rem;
+  font-family: inherit;
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid #3c4043;
+  background: #202127;
+  color: #e8eaed;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.espn-manual {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.espn-manual summary {
+  font-size: 0.8rem;
+  color: #8ab4f8;
+  cursor: pointer;
+}
