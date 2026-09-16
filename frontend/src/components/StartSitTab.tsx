@@ -5,6 +5,7 @@ import { MatchupTag } from "./MatchupTag";
 import { InjuryBadge } from "./InjuryBadge";
 import { formatPoints } from "../formatPoints";
 import { starterSlotRank } from "../lineupSlotOrder";
+import { matchupDetail } from "../matchupDetail";
 
 // Backend returns lineup rows in a "most-constrained slot first" solver
 // order, not a display order — same QB/RB/RB/WR/WR/TE/FLEX/D/K ordering
@@ -15,6 +16,16 @@ function orderedLineup(lineup: StartSitRow[]): StartSitRow[] {
     if (rankDiff !== 0) return rankDiff;
     return (b.current_starter.projected_points ?? -Infinity) - (a.current_starter.projected_points ?? -Infinity);
   });
+}
+
+/** What to say when there's no opponent to rate. A missing matchup is
+ * nearly always a bye — the team simply isn't in this week's schedule —
+ * but it's also what you get before a league has ever been synced with
+ * schedule data, so the two are distinguished by whether a projection
+ * exists at all rather than asserted blindly. */
+function noMatchupNote(row: StartSitRow): string {
+  if (row.current_starter.projected_points == null) return "On bye this week.";
+  return "No opponent data for this team yet — re-sync to pull the schedule.";
 }
 
 export function StartSitTab({ leagueId }: { leagueId: number }) {
@@ -47,7 +58,6 @@ export function StartSitTab({ leagueId }: { leagueId: number }) {
               <th>Currently Starting</th>
               <th className="num">Proj.</th>
               <th>Matchup</th>
-              <th>Recommendation</th>
               <th>Why</th>
             </tr>
           </thead>
@@ -60,19 +70,21 @@ export function StartSitTab({ leagueId }: { leagueId: number }) {
                 <td>
                   {row.current_starter.name}
                   <InjuryBadge status={row.current_starter.injury_status} />
+                  {/* The swap suggestion lives here now that it has no
+                      column of its own — it belongs next to the player it
+                      replaces, and only appears on the rows that need it. */}
+                  {row.swap_recommended && (
+                    <div className="swap-note">
+                      &rarr; Start <strong>{row.recommended_starter.name}</strong> instead
+                      {row.reason ? ` (${row.reason})` : ""}
+                    </div>
+                  )}
                 </td>
                 <td className="num">{formatPoints(row.current_starter.projected_points)}</td>
                 <td>
                   <MatchupTag matchup={row.current_starter.matchup} />
                 </td>
-                <td>
-                  {row.swap_recommended ? (
-                    <strong>Start {row.recommended_starter.name} instead</strong>
-                  ) : (
-                    "Keep starting"
-                  )}
-                </td>
-                <td>{row.reason ?? "-"}</td>
+                <td className="matchup-detail">{matchupDetail(row.current_starter.matchup) ?? noMatchupNote(row)}</td>
               </tr>
             ))}
           </tbody>

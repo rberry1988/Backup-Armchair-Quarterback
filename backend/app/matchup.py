@@ -53,15 +53,20 @@ def rate_opponent(
         if len(all_values) >= 4:  # too few teams to rank meaningfully otherwise
             # Fewer points allowed = a stingier, tougher defense; more
             # allowed = an easier matchup for the offense.
-            rank, total, label = _rank_and_label(
-                points_allowed[opponent_abbr][position], all_values, higher_is_tougher=False
-            )
+            value = points_allowed[opponent_abbr][position]
+            rank, total, label = _rank_and_label(value, all_values, higher_is_tougher=False)
             return {
                 "opponent": opponent_abbr,
                 "defense_rank": rank,
                 "defense_teams_ranked": total,
                 "label": label,
                 "source": "points_allowed",
+                # The numbers the label was derived from, so the UI can say
+                # *why* a matchup is rated the way it is rather than asking
+                # anyone to take "tough" on faith.
+                "position": position,
+                "value": round(value, 1),
+                "league_average": round(sum(all_values) / len(all_values), 1),
             }
 
     dst_scores = league.dst_projected_points or {}
@@ -69,11 +74,15 @@ def rate_opponent(
     if opponent_score is None:
         return None
     # Higher D/ST projected score = a stronger, tougher defense.
-    rank, total, label = _rank_and_label(opponent_score, list(dst_scores.values()), higher_is_tougher=True)
+    all_scores = list(dst_scores.values())
+    rank, total, label = _rank_and_label(opponent_score, all_scores, higher_is_tougher=True)
     return {
         "opponent": opponent_abbr,
         "defense_rank": rank,
         "defense_teams_ranked": total,
         "label": label,
         "source": "dst_projection",
+        "position": position,
+        "value": round(opponent_score, 1),
+        "league_average": round(sum(all_scores) / len(all_scores), 1) if all_scores else None,
     }

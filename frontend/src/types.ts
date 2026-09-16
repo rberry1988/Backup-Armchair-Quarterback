@@ -125,6 +125,16 @@ export interface MatchupContext {
   defense_rank: number;
   defense_teams_ranked: number;
   label: string;
+  /** Which measure the rating came from: "points_allowed" is the real
+   * PPR points-per-game this defense gives up to this position;
+   * "dst_projection" is the cruder stand-in used before nflverse data
+   * exists for a team (see backend/app/matchup.py). */
+  source?: "points_allowed" | "dst_projection";
+  position?: string | null;
+  /** The number behind the label — points allowed per game, or the
+   * opponent D/ST's projected score under the fallback. */
+  value?: number | null;
+  league_average?: number | null;
 }
 
 export interface StartSitPlayer {

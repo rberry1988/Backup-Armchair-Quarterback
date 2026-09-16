@@ -18,7 +18,11 @@ teams, and scoring rules) and gives you three things every week:
 - **Matchup difficulty** — Start/Sit and Waivers both tag each player with
   their opponent this week and a tough/average/favorable label, based on
   real points-allowed-by-position data where available (see nflverse
-  below), and **suggested FAAB bids** on waiver adds.
+  below), and **suggested FAAB bids** on waiver adds. Start/Sit shows the
+  numbers behind each label rather than asking you to take it on faith —
+  what that defense actually gives up per game to that position, how far
+  that is from the league average, and where it ranks — so you can
+  disagree with the rating on the evidence.
 - **Usage trends** — Roster and Waivers show each player's last few played
   weeks of targets, carries, receptions, or pass attempts, plus (when
   available) real target share and snap % from nflverse — an up/down/flat
