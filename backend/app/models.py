@@ -122,6 +122,7 @@ class League(Base):
     # SQLite isn't running with FK enforcement/ON DELETE CASCADE either.
     players: Mapped[list["Player"]] = relationship(cascade="all, delete-orphan")
     player_week_stats: Mapped[list["PlayerWeekStat"]] = relationship(cascade="all, delete-orphan")
+    planned_moves: Mapped[list["PlannedMove"]] = relationship(cascade="all, delete-orphan")
 
 
 class Team(Base):
@@ -217,6 +218,31 @@ class RosterEntry(Base):
 
     team: Mapped[Team] = relationship(back_populates="roster_entries")
     player: Mapped[Player] = relationship(back_populates="roster_entries")
+
+
+class PlannedMove(Base):
+    """A waiver claim you intend to put in — your own shortlist, kept next
+    to the recommendations that produced it.
+
+    Player names and ESPN ids are stored denormalized rather than as a FK
+    to Player, because Player rows are wiped and rebuilt on every sync (see
+    sync_service) — a foreign key to them would dangle within a day.
+    espn_player_id is the identifier that actually survives.
+    """
+
+    __tablename__ = "planned_moves"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"), index=True)
+    add_espn_player_id: Mapped[int] = mapped_column(Integer)
+    add_name: Mapped[str] = mapped_column(String)
+    add_position: Mapped[str] = mapped_column(String, default="")
+    drop_espn_player_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    drop_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    # % of a 100-point FAAB budget you plan to bid, if your league uses one.
+    faab_bid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
 
 
 class AppSetting(Base):

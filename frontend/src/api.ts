@@ -9,6 +9,7 @@ import type {
   HandcuffsResponse,
   ScheduleOutlookResponse,
   LeagueSummary,
+  PlannedMove,
   RosterResponse,
   StartSitResponse,
   TeamWithRoster,
@@ -108,6 +109,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ team_id: teamId }),
     }),
+  getPlannedMoves: (leagueId: number) => request<PlannedMove[]>(`/api/league/${leagueId}/planned-moves`),
+  addPlannedMove: (
+    leagueId: number,
+    move: {
+      add_espn_player_id: number;
+      add_name: string;
+      add_position?: string;
+      drop_espn_player_id?: number | null;
+      drop_name?: string | null;
+      faab_bid?: number | null;
+    }
+  ) =>
+    request<PlannedMove>(`/api/league/${leagueId}/planned-moves`, {
+      method: "POST",
+      body: JSON.stringify(move),
+    }),
+  deletePlannedMove: (leagueId: number, moveId: number) =>
+    request<void>(`/api/league/${leagueId}/planned-moves/${moveId}`, { method: "DELETE" }),
+
   setAutoSync: (leagueId: number, enabled: boolean, intervalHours: number) =>
     request<LeagueSummary>(`/api/league/${leagueId}/auto-sync`, {
       method: "POST",

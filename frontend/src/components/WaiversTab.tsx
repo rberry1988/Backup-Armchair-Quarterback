@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
-import type { RestOfSeasonSuggestion, WaiverGroup, WaiverResponse, WaiverSuggestion } from "../types";
-import { api } from "../api";
+import type {
+  PlannedMove,
+  RestOfSeasonSuggestion,
+  WaiverGroup,
+  WaiverResponse,
+  WaiverSuggestion,
+} from "../types";
+import { ApiError, api } from "../api";
 import { formatPoints } from "../formatPoints";
 import { MatchupTag } from "./MatchupTag";
 import { TrendTag } from "./TrendTag";
@@ -8,7 +14,46 @@ import { InjuryBadge } from "./InjuryBadge";
 
 type Lens = "this-week" | "rest-of-season";
 
-function ThisWeekTable({ group }: { group: WaiverGroup<WaiverSuggestion> }) {
+/** Adds a "Plan" button to a suggestion row when the viewer can use it —
+ * null for basic accounts, so the column simply isn't there for them. */
+type PlanHandler = ((s: WaiverSuggestion | RestOfSeasonSuggestion) => void) | null;
+
+function PlanCell({
+  suggestion,
+  onPlan,
+  planned,
+  busy,
+}: {
+  suggestion: WaiverSuggestion | RestOfSeasonSuggestion;
+  onPlan: PlanHandler;
+  planned: boolean;
+  busy: boolean;
+}) {
+  if (!onPlan) return null;
+  return (
+    <td>
+      {planned ? (
+        <span className="hint">Planned</span>
+      ) : (
+        <button onClick={() => onPlan(suggestion)} disabled={busy}>
+          Plan
+        </button>
+      )}
+    </td>
+  );
+}
+
+function ThisWeekTable({
+  group,
+  onPlan,
+  plannedIds,
+  busy,
+}: {
+  group: WaiverGroup<WaiverSuggestion>;
+  onPlan: PlanHandler;
+  plannedIds: Set<number>;
+  busy: boolean;
+}) {
   return (
     <div className="waiver-group">
       <h3>{group.position}</h3>
@@ -24,6 +69,7 @@ function ThisWeekTable({ group }: { group: WaiverGroup<WaiverSuggestion> }) {
               <th className="num">Net Gain</th>
               <th className="num">Suggested FAAB</th>
               <th>Usage Trend</th>
+              {onPlan && <th></th>}
             </tr>
           </thead>
           <tbody>
@@ -44,6 +90,12 @@ function ThisWeekTable({ group }: { group: WaiverGroup<WaiverSuggestion> }) {
                 <td>
                   <TrendTag trend={s.add.trend} />
                 </td>
+                <PlanCell
+                  suggestion={s}
+                  onPlan={onPlan}
+                  planned={plannedIds.has(s.add.espn_player_id)}
+                  busy={busy}
+                />
               </tr>
             ))}
           </tbody>
@@ -53,7 +105,17 @@ function ThisWeekTable({ group }: { group: WaiverGroup<WaiverSuggestion> }) {
   );
 }
 
-function RestOfSeasonTable({ group }: { group: WaiverGroup<RestOfSeasonSuggestion> }) {
+function RestOfSeasonTable({
+  group,
+  onPlan,
+  plannedIds,
+  busy,
+}: {
+  group: WaiverGroup<RestOfSeasonSuggestion>;
+  onPlan: PlanHandler;
+  plannedIds: Set<number>;
+  busy: boolean;
+}) {
   return (
     <div className="waiver-group">
       <h3>{group.position}</h3>
@@ -69,6 +131,7 @@ function RestOfSeasonTable({ group }: { group: WaiverGroup<RestOfSeasonSuggestio
               <th className="num">% Owned</th>
               <th>Drop</th>
               <th className="num">Value Gain</th>
+              {onPlan && <th></th>}
             </tr>
           </thead>
           <tbody>
@@ -91,6 +154,12 @@ function RestOfSeasonTable({ group }: { group: WaiverGroup<RestOfSeasonSuggestio
                 <td className="num">{s.add.percent_owned}%</td>
                 <td>{s.drop_candidate ? s.drop_candidate.name : "-"}</td>
                 <td className="num">+{s.value_upgrade}</td>
+                <PlanCell
+                  suggestion={s}
+                  onPlan={onPlan}
+                  planned={plannedIds.has(s.add.espn_player_id)}
+                  busy={busy}
+                />
               </tr>
             ))}
           </tbody>
@@ -100,10 +169,13 @@ function RestOfSeasonTable({ group }: { group: WaiverGroup<RestOfSeasonSuggestio
   );
 }
 
-export function WaiversTab({ leagueId }: { leagueId: number }) {
+export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremium: boolean }) {
   const [data, setData] = useState<WaiverResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lens, setLens] = useState<Lens>("this-week");
+  const [planned, setPlanned] = useState<PlannedMove[]>([]);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [planBusy, setPlanBusy] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -120,14 +192,119 @@ export function WaiversTab({ leagueId }: { leagueId: number }) {
     };
   }, [leagueId]);
 
+  useEffect(() => {
+    if (!isPremium) {
+      setPlanned([]);
+      return;
+    }
+    let ignore = false;
+    api
+      .getPlannedMoves(leagueId)
+      .then((moves) => {
+        if (!ignore) setPlanned(moves);
+      })
+      .catch(() => {
+        // Non-critical panel — leave it empty rather than blocking the
+        // recommendations behind an error banner.
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [leagueId, isPremium]);
+
+  async function handlePlan(s: WaiverSuggestion | RestOfSeasonSuggestion) {
+    setPlanError(null);
+    setPlanBusy(true);
+    try {
+      const created = await api.addPlannedMove(leagueId, {
+        add_espn_player_id: s.add.espn_player_id,
+        add_name: s.add.name,
+        add_position: currentPosition(s) ?? "",
+        drop_espn_player_id: s.drop_candidate?.espn_player_id ?? null,
+        drop_name: s.drop_candidate?.name ?? null,
+        faab_bid: "suggested_faab_pct" in s ? s.suggested_faab_pct : null,
+      });
+      setPlanned((prev) => [...prev, created]);
+    } catch (e) {
+      setPlanError(e instanceof ApiError ? e.message : "Failed to save that planned move.");
+    } finally {
+      setPlanBusy(false);
+    }
+  }
+
+  async function handleRemovePlan(moveId: number) {
+    setPlanError(null);
+    setPlanBusy(true);
+    try {
+      await api.deletePlannedMove(leagueId, moveId);
+      setPlanned((prev) => prev.filter((m) => m.id !== moveId));
+    } catch (e) {
+      setPlanError(e instanceof ApiError ? e.message : "Failed to remove that planned move.");
+    } finally {
+      setPlanBusy(false);
+    }
+  }
+
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p>Loading...</p>;
 
   const groups = lens === "this-week" ? data.this_week : data.rest_of_season;
+  const plannedIds = new Set(planned.map((m) => m.add_espn_player_id));
+  // The position isn't on the suggestion itself, only on the group that
+  // contains it, so it's resolved from whichever group the row came from.
+  function currentPosition(s: WaiverSuggestion | RestOfSeasonSuggestion): string | null {
+    for (const g of [...data!.this_week, ...data!.rest_of_season]) {
+      if (g.suggestions.some((x) => x.add.espn_player_id === s.add.espn_player_id)) return g.position;
+    }
+    return null;
+  }
+  const onPlan: PlanHandler = isPremium ? handlePlan : null;
 
   return (
     <div className="panel">
       <h2>Waiver Wire Targets</h2>
+
+      {isPremium && (
+        <div className="planned-moves">
+          <h3>Pending Moves</h3>
+          {planned.length === 0 ? (
+            <p className="hint">
+              Nothing planned yet. Use <strong>Plan</strong> on any target below to build your claim list for this
+              week &mdash; it's your own shortlist, kept here alongside the recommendations.
+            </p>
+          ) : (
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Add</th>
+                    <th>Pos</th>
+                    <th>Drop</th>
+                    <th className="num">Planned FAAB</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {planned.map((m) => (
+                    <tr key={m.id}>
+                      <td>{m.add_name}</td>
+                      <td>{m.add_position || "-"}</td>
+                      <td>{m.drop_name ?? "-"}</td>
+                      <td className="num">{m.faab_bid != null ? `${m.faab_bid}%` : "-"}</td>
+                      <td>
+                        <button onClick={() => handleRemovePlan(m.id)} disabled={planBusy}>
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {planError && <p className="error">{planError}</p>}
+        </div>
+      )}
 
       <div className="lens-toggle">
         <button className={lens === "this-week" ? "active" : ""} onClick={() => setLens("this-week")}>
@@ -166,9 +343,21 @@ export function WaiversTab({ leagueId }: { leagueId: number }) {
       ) : (
         groups.map((group) =>
           lens === "this-week" ? (
-            <ThisWeekTable key={group.position} group={group as WaiverGroup<WaiverSuggestion>} />
+            <ThisWeekTable
+              key={group.position}
+              group={group as WaiverGroup<WaiverSuggestion>}
+              onPlan={onPlan}
+              plannedIds={plannedIds}
+              busy={planBusy}
+            />
           ) : (
-            <RestOfSeasonTable key={group.position} group={group as WaiverGroup<RestOfSeasonSuggestion>} />
+            <RestOfSeasonTable
+              key={group.position}
+              group={group as WaiverGroup<RestOfSeasonSuggestion>}
+              onPlan={onPlan}
+              plannedIds={plannedIds}
+              busy={planBusy}
+            />
           )
         )
       )}

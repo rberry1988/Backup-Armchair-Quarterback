@@ -188,7 +188,7 @@ function App() {
         )}
         {tab === "roster" && league && <RosterTab leagueId={league.id} />}
         {tab === "start-sit" && league && <StartSitTab leagueId={league.id} />}
-        {tab === "waivers" && league && <WaiversTab leagueId={league.id} />}
+        {tab === "waivers" && league && <WaiversTab leagueId={league.id} isPremium={user.is_premium} />}
         {tab === "trade-targets" && league && (
           <TradeTargetsTab leagueId={league.id} myTeamId={league.my_team_id} />
         )}

@@ -25,6 +25,7 @@ from app.auth import (
     record_failed_login,
     record_registration,
     require_admin,
+    require_premium,
     verify_password,
 )
 from app.bench_points import get_bench_points
@@ -36,7 +37,7 @@ from app.depth_charts import compute_depth_charts, get_rb_handcuffs
 from app.espn_client import ESPNClientError
 from app.fantasycalc_client import get_trade_value
 from app.fantasypros_client import get_injury_context
-from app.models import League, RosterEntry, Team, User
+from app.models import League, PlannedMove, RosterEntry, Team, User
 from app.schedule_outlook import get_schedule_outlook
 from app.recommendations.start_sit import get_start_sit
 from app.recommendations.trades import get_trade_suggestions, grade_trade
@@ -49,6 +50,7 @@ from app.schemas import (
     FantasyProsKeyStatus,
     LoginRequest,
     RegisterRequest,
+    PlannedMoveRequest,
     ResetPasswordRequest,
     SetAdminRequest,
     SetMyTeamRequest,
@@ -430,6 +432,95 @@ def set_my_team(
     league.my_team_id = payload.team_id
     db.commit()
     return _league_summary(db, league)
+
+
+# ---------------------------------------------------------------------------
+# Planned waiver moves (premium)
+# ---------------------------------------------------------------------------
+
+# Bounded so a runaway client can't turn this into unbounded storage, and
+# because a claim shortlist this long isn't a shortlist any more.
+MAX_PLANNED_MOVES_PER_LEAGUE = 25
+
+
+def _planned_move_out(move: PlannedMove) -> dict:
+    return {
+        "id": move.id,
+        "add_espn_player_id": move.add_espn_player_id,
+        "add_name": move.add_name,
+        "add_position": move.add_position,
+        "drop_espn_player_id": move.drop_espn_player_id,
+        "drop_name": move.drop_name,
+        "faab_bid": move.faab_bid,
+        "note": move.note,
+        "created_at": move.created_at,
+    }
+
+
+@app.get("/api/league/{league_id}/planned-moves")
+def list_planned_moves(
+    league_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_premium),
+):
+    league = _owned_league_or_404(db, league_id, current_user)
+    moves = (
+        db.query(PlannedMove)
+        .filter(PlannedMove.league_id == league.id)
+        .order_by(PlannedMove.created_at)
+        .all()
+    )
+    return [_planned_move_out(m) for m in moves]
+
+
+@app.post("/api/league/{league_id}/planned-moves", status_code=201)
+def add_planned_move(
+    league_id: int,
+    payload: PlannedMoveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_premium),
+):
+    league = _owned_league_or_404(db, league_id, current_user)
+    existing = db.query(func.count(PlannedMove.id)).filter(PlannedMove.league_id == league.id).scalar() or 0
+    if existing >= MAX_PLANNED_MOVES_PER_LEAGUE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"You can plan up to {MAX_PLANNED_MOVES_PER_LEAGUE} moves at a time. Remove one first.",
+        )
+    already_planned = (
+        db.query(PlannedMove)
+        .filter(
+            PlannedMove.league_id == league.id,
+            PlannedMove.add_espn_player_id == payload.add_espn_player_id,
+        )
+        .first()
+    )
+    if already_planned is not None:
+        raise HTTPException(status_code=409, detail=f"{payload.add_name} is already in your planned moves.")
+
+    move = PlannedMove(league_id=league.id, **payload.model_dump())
+    db.add(move)
+    db.commit()
+    db.refresh(move)
+    return _planned_move_out(move)
+
+
+@app.delete("/api/league/{league_id}/planned-moves/{move_id}", status_code=204)
+def delete_planned_move(
+    league_id: int,
+    move_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_premium),
+):
+    league = _owned_league_or_404(db, league_id, current_user)
+    move = db.get(PlannedMove, move_id)
+    # Checked against this league (already proven to be the caller's) rather
+    # than trusting the id alone, so a move id from someone else's league
+    # can't be deleted by guessing it.
+    if move is None or move.league_id != league.id:
+        raise HTTPException(status_code=404, detail="Planned move not found")
+    db.delete(move)
+    db.commit()
 
 
 @app.post("/api/league/{league_id}/auto-sync")

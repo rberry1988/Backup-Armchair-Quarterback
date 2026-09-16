@@ -166,3 +166,12 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
     if not is_admin(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return current_user
+
+
+def require_premium(current_user: User = Depends(get_current_user)) -> User:
+    """Gate for premium-only features. Enforced server-side rather than
+    only hiding the UI — a basic account calling the endpoint directly
+    still gets a 403."""
+    if not has_premium_access(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Premium access required")
+    return current_user

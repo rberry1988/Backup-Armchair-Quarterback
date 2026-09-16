@@ -163,6 +163,9 @@ def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int 
 
     def add_payload(candidate: Player) -> dict:
         return {
+            # Needed by the planned-moves feature to record which player a
+            # planned claim is for; Player row ids don't survive a sync.
+            "espn_player_id": candidate.espn_player_id,
             "name": candidate.full_name,
             "projected_points": candidate.projected_points,
             "percent_owned": round(candidate.percent_owned, 1),
@@ -185,7 +188,8 @@ def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int 
                 {
                     "add": add_payload(candidate),
                     "drop_candidate": (
-                        {"name": weakest.full_name, "projected_points": weakest.projected_points}
+                        {"espn_player_id": weakest.espn_player_id, "name": weakest.full_name,
+                         "projected_points": weakest.projected_points}
                         if weakest
                         else None
                     ),
@@ -209,7 +213,10 @@ def get_waiver_targets(db: Session, league_id: int, my_team_id: int, top_n: int 
                 {
                     "add": add_payload(candidate),
                     "drop_candidate": (
-                        {"name": weakest.full_name, "fantasycalc_value": baseline} if weakest else None
+                        {"espn_player_id": weakest.espn_player_id, "name": weakest.full_name,
+                         "fantasycalc_value": baseline}
+                        if weakest
+                        else None
                     ),
                     # No FAAB suggestion here on purpose: the existing one is
                     # calibrated against a projected-points upgrade, and

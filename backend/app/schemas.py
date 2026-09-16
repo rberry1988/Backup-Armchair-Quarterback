@@ -105,6 +105,17 @@ class SetPremiumRequest(BaseModel):
     is_premium: bool
 
 
+class PlannedMoveRequest(BaseModel):
+    add_espn_player_id: int
+    add_name: str = Field(max_length=100)
+    add_position: str = Field(default="", max_length=10)
+    drop_espn_player_id: int | None = None
+    drop_name: str | None = Field(default=None, max_length=100)
+    # % of a standard 100-point FAAB budget.
+    faab_bid: int | None = Field(default=None, ge=0, le=100)
+    note: str | None = Field(default=None, max_length=200)
+
+
 class AutoSyncRequest(BaseModel):
     enabled: bool
     # Bounds match app/auto_sync.py's clamp; anything outside is a client

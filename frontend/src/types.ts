@@ -152,6 +152,7 @@ export interface StartSitResponse {
 }
 
 export interface WaiverAdd {
+  espn_player_id: number;
   name: string;
   projected_points: number | null;
   percent_owned: number;
@@ -163,20 +164,32 @@ export interface WaiverAdd {
 
 export interface WaiverSuggestion {
   add: WaiverAdd;
-  drop_candidate: { name: string; projected_points: number | null } | null;
+  drop_candidate: { espn_player_id: number; name: string; projected_points: number | null } | null;
   point_upgrade: number;
   suggested_faab_pct: number;
 }
 
 export interface RestOfSeasonSuggestion {
   add: WaiverAdd;
-  drop_candidate: { name: string; fantasycalc_value: number } | null;
+  drop_candidate: { espn_player_id: number; name: string; fantasycalc_value: number } | null;
   value_upgrade: number;
 }
 
 export interface WaiverGroup<T> {
   position: string;
   suggestions: T[];
+}
+
+export interface PlannedMove {
+  id: number;
+  add_espn_player_id: number;
+  add_name: string;
+  add_position: string;
+  drop_espn_player_id: number | null;
+  drop_name: string | null;
+  faab_bid: number | null;
+  note: string | null;
+  created_at: string;
 }
 
 export interface WaiverResponse {
