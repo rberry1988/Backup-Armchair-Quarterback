@@ -319,10 +319,14 @@ def sync_league(
             # PlayerWeekStat accumulates across syncs, so it remembers
             # players who have since left the pool entirely — exactly the
             # ones a transaction log refers to.
+            # .distinct() because this table holds one row per player *per
+            # week* — without it a mid-season league hands back thousands of
+            # rows to build a few hundred dictionary entries.
             player_names = {
                 espn_id: name
                 for espn_id, name in db.query(PlayerWeekStat.espn_player_id, PlayerWeekStat.full_name)
                 .filter(PlayerWeekStat.league_id == league_id)
+                .distinct()
                 .all()
             }
             player_names.update({p.espn_player_id: p.full_name for p in player_by_espn_id.values()})

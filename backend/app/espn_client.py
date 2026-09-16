@@ -231,7 +231,21 @@ class ESPNClient:
             resp.raise_for_status()
         except httpx.HTTPError as exc:
             raise ESPNClientError(f"ESPN returned an error: {exc}") from exc
-        return resp.json()
+        try:
+            return resp.json()
+        except ValueError as exc:
+            # A 200 carrying something that isn't JSON: a Cloudflare
+            # interstitial, an ESPN maintenance page, a truncated body.
+            # Without this the JSONDecodeError escapes as a bare ValueError,
+            # straight past every `except ESPNClientError` in the codebase —
+            # so a sync, a pending-claims fetch or a bench-points lookup
+            # would 500 instead of reporting that ESPN is misbehaving. Every
+            # other client here already guards this; this one is the most
+            # used and was the only one that didn't.
+            raise ESPNClientError(
+                "ESPN returned a response that wasn't JSON. It's usually a temporary block or "
+                "maintenance page — try again in a few minutes."
+            ) from exc
 
     def get_league(self) -> dict:
         """League settings, scoring rules, teams, rosters and the season's
