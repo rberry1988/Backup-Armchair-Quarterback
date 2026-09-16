@@ -74,6 +74,17 @@ that's the same-origin policy, and no app code gets around it — so the
 bookmarklet is the shortest honest path: it runs on ESPN's own page,
 reads two cookies, and sends them nowhere.
 
+Works in any Chromium browser (Chrome, Edge, Brave) and Firefox. Two
+things worth knowing:
+
+- If the browser refuses the clipboard write — some do, for a script
+  started from a bookmark — a box pops up with the text instead. Copy it
+  from there; nothing is lost.
+- Brave's "Forget me when I close this site" (Shields → advanced) clears
+  espn.com's cookies when you close the tab, which logs out the session
+  this depends on. Leave it off for espn.com, or expect to re-run the
+  bookmarklet often.
+
 Those cookies are stored per account, used only to serve your own
 requests, and never sent back to any browser once saved. ESPN expires them
 every few weeks, so re-run the bookmarklet when claims stop showing up.

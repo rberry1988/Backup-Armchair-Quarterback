@@ -15,19 +15,34 @@
  * doesn't mark espn_s2 or SWID HttpOnly, so a script on an ESPN page can
  * read both and put them on the clipboard — which is all this does. It
  * sends nothing anywhere; the user pastes the result into this app by
- * hand. Kept as one line because that's what a bookmark URL has to be. */
+ * hand. Kept as one line because that's what a bookmark URL has to be.
+ *
+ * Values are copied exactly as the cookie stores them, percent-encoding
+ * and all. espn_s2 routinely contains %2B/%2F/%3D, and ESPN only accepts
+ * it back byte-for-byte — decoding it yields a different cookie and a 401
+ * with nothing to explain it. It also keeps this agreeing with what
+ * devtools shows, so both ways into the app produce the same thing.
+ *
+ * A clipboard write from a bookmarklet is the one step that can plausibly
+ * be refused: the Clipboard API wants a secure context and a transient
+ * user activation, and clicking a bookmark doesn't always count as one —
+ * more so in a privacy-focused browser. So every way it can fail (missing
+ * API, a rejected promise, a synchronous throw) lands on the same
+ * fallback, a prompt box holding the text to copy by hand. The user is
+ * never left with nothing. */
 export const ESPN_BOOKMARKLET =
   "javascript:(function(){" +
   "var g=function(n){var m=document.cookie.match(new RegExp('(?:^|;\\\\s*)'+n+'=([^;]*)'));" +
-  "return m?decodeURIComponent(m[1]):''};" +
+  "return m?m[1]:''};" +
   "var s=g('espn_s2'),w=g('SWID');" +
-  "if(!s||!w){alert('Couldn\\\\'t find your ESPN cookies on this page. Open fantasy.espn.com, " +
+  "if(!s||!w){alert('Could not find your ESPN cookies on this page. Open fantasy.espn.com, " +
   "make sure you are signed in, and click this bookmark there.');return}" +
   "var t='espn_s2='+s+'; SWID='+w;" +
   "var d=function(){window.prompt('Copy this, then paste it into Backup Armchair Quarterback:',t)};" +
-  "if(navigator.clipboard&&navigator.clipboard.writeText){" +
+  "try{" +
   "navigator.clipboard.writeText(t).then(function(){" +
-  "alert('ESPN cookies copied. Paste them into Backup Armchair Quarterback.')},d)}else{d()}" +
+  "alert('ESPN cookies copied. Paste them into Backup Armchair Quarterback.')},d)" +
+  "}catch(e){d()}" +
   "})()";
 
 export interface ParsedEspnCookies {
