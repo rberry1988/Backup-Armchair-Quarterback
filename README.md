@@ -71,7 +71,7 @@ teams, and scoring rules) and gives you three things every week:
   real points as they're scored, who's playing / done / yet to start, and
   a win probability that tightens as the day resolves, because only
   unplayed points are still uncertain.
-- **Playoffs** (premium) — the rest of the season simulated a couple of
+- **Playoffs** (in the Extra tab, premium) — the rest of the season simulated a couple of
   thousand times off the real head-to-head schedule: playoff odds and
   projected wins per team, plus the strength of everyone's remaining
   opponents. Team strength comes from points scored per game rather than
@@ -82,7 +82,7 @@ teams, and scoring rules) and gives you three things every week:
   ruled out or hits a bye, and when your league changes. Only those two
   services are accepted, over https: the server makes the request, so an
   arbitrary URL there would be a server-side request forgery hole.
-- **Activity** (premium) — the league's transaction log: who claimed whom,
+- **Activity** (in the Extra tab, premium) — the league's transaction log: who claimed whom,
   what it cost, and a per-manager spending profile. Remaining budget says
   what a rival *can* spend; what they've actually paid for past claims is
   the better guide to whether they'll outbid you.
