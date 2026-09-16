@@ -6,10 +6,14 @@ import { ESPN_BOOKMARKLET, parseEspnCookies } from "../espnCookies";
 interface Props {
   email: string;
   displayName: string | null;
+  // Connecting an ESPN account only unlocks premium features, so the whole
+  // section is hidden for basic accounts — and its endpoints 403 for them
+  // too, so this isn't the only thing keeping them out.
+  isPremium: boolean;
   onDisplayNameChange: (displayName: string | null) => void;
 }
 
-export function AccountTab({ email, displayName, onDisplayNameChange }: Props) {
+export function AccountTab({ email, displayName, isPremium, onDisplayNameChange }: Props) {
   const [nameInput, setNameInput] = useState(displayName ?? "");
   const [nameError, setNameError] = useState<string | null>(null);
   const [nameSaved, setNameSaved] = useState(false);
@@ -40,6 +44,7 @@ export function AccountTab({ email, displayName, onDisplayNameChange }: Props) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (!isPremium) return;  // the endpoint would 403 anyway
     let ignore = false;
     api
       .getEspnCredentials()
@@ -53,11 +58,13 @@ export function AccountTab({ email, displayName, onDisplayNameChange }: Props) {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [isPremium]);
 
   useEffect(() => {
+    // Re-run on isPremium so the href is set if the section appears later;
+    // the ref is null on the renders where it isn't shown at all.
     bookmarkletRef.current?.setAttribute("href", ESPN_BOOKMARKLET);
-  }, []);
+  }, [isPremium]);
 
   async function handleCopyBookmarklet() {
     try {
@@ -197,112 +204,114 @@ export function AccountTab({ email, displayName, onDisplayNameChange }: Props) {
       {nameSaved && <p className="success">Saved &mdash; shown in place of your email at the top of the page.</p>}
       <p className="hint">Leave it blank to show your email there instead.</p>
 
-      <div className="espn-connect">
-        <h3>
-          ESPN Account{" "}
-          <span className={espnConnected ? "success" : "hint"} style={{ fontSize: "0.8rem" }}>
-            {espnConnected ? "Connected" : "Not connected"}
-          </span>
-        </h3>
-        <p className="hint">
-          Connecting your ESPN account lets this app read the waiver claims and trade offers you've actually
-          submitted in ESPN &mdash; they appear under <strong>Pending Moves</strong> on the Waivers tab &mdash; and
-          lets you sync private leagues of your own. ESPN only shows that data to the account it belongs to, which is
-          why it needs your session and not just a league ID. Read-only: nothing here ever submits or cancels a claim
-          for you.
-        </p>
-
-        <ol className="espn-steps">
-          <li>
-            Drag this to your bookmarks bar (or{" "}
-            <button type="button" className="link-button" onClick={handleCopyBookmarklet}>
-              copy it
-            </button>{" "}
-            and paste it in as a new bookmark's URL):
-            <div className="bookmarklet-row">
-              {/* href is set in an effect - see bookmarkletRef. */}
-              <a ref={bookmarkletRef} className="bookmarklet" onClick={(e) => e.preventDefault()}>
-                Get ESPN cookies
-              </a>
-              {bookmarkletCopied && <span className="success">Copied</span>}
-            </div>
-          </li>
-          <li>
-            Open <strong>fantasy.espn.com</strong>, signed in, and click that bookmark there. It copies your{" "}
-            <code>espn_s2</code> and <code>SWID</code> to your clipboard and sends them nowhere.
-          </li>
-          <li>Come back here, paste, and hit {espnConnected ? "Replace" : "Connect"}.</li>
-        </ol>
-
-        <form onSubmit={handleSaveEspn} style={{ maxWidth: "460px" }}>
-          <label className="espn-paste-label">
-            Paste from ESPN
-            <textarea
-              rows={3}
-              value={espnPaste}
-              onChange={(e) => setEspnPaste(e.target.value)}
-              placeholder={espnConnected ? "Saved - paste again to replace it" : "espn_s2=...; SWID={...}"}
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </label>
+      {isPremium && (
+        <div className="espn-connect">
+          <h3>
+            ESPN Account{" "}
+            <span className={espnConnected ? "success" : "hint"} style={{ fontSize: "0.8rem" }}>
+              {espnConnected ? "Connected" : "Not connected"}
+            </span>
+          </h3>
           <p className="hint">
-            A whole cookie dump is fine too &mdash; only <code>espn_s2</code> and <code>SWID</code> are picked out,
-            here in your browser, and only those two are sent to the server.
+            Connecting your ESPN account lets this app read the waiver claims and trade offers you've actually
+            submitted in ESPN &mdash; they appear under <strong>Pending Moves</strong> on the Waivers tab &mdash; and
+            lets you sync private leagues of your own. ESPN only shows that data to the account it belongs to, which is
+            why it needs your session and not just a league ID. Read-only: nothing here ever submits or cancels a claim
+            for you.
           </p>
 
-          <details className="espn-manual">
-            <summary>Enter them separately instead</summary>
-            <p className="hint">
-              Sign in at fantasy.espn.com, open your browser's developer tools &rarr; Application (or Storage) &rarr;
-              Cookies &rarr; espn.com, and copy each value.
-            </p>
-            <div className="form-row" style={{ flexDirection: "column", alignItems: "stretch" }}>
-              <label>
-                espn_s2
-                <input
-                  type="password"
-                  value={espnS2}
-                  onChange={(e) => setEspnS2(e.target.value)}
-                  placeholder={espnConnected ? "Saved - paste a new value to replace it" : "AEB..."}
-                  autoComplete="off"
-                />
-              </label>
-              <label>
-                SWID
-                <input
-                  type="password"
-                  value={swid}
-                  onChange={(e) => setSwid(e.target.value)}
-                  placeholder={espnConnected ? "Saved - paste a new value to replace it" : "{XXXXXXXX-XXXX-...}"}
-                  autoComplete="off"
-                />
-              </label>
-            </div>
-          </details>
+          <ol className="espn-steps">
+            <li>
+              Drag this to your bookmarks bar (or{" "}
+              <button type="button" className="link-button" onClick={handleCopyBookmarklet}>
+                copy it
+              </button>{" "}
+              and paste it in as a new bookmark's URL):
+              <div className="bookmarklet-row">
+                {/* href is set in an effect - see bookmarkletRef. */}
+                <a ref={bookmarkletRef} className="bookmarklet" onClick={(e) => e.preventDefault()}>
+                  Get ESPN cookies
+                </a>
+                {bookmarkletCopied && <span className="success">Copied</span>}
+              </div>
+            </li>
+            <li>
+              Open <strong>fantasy.espn.com</strong>, signed in, and click that bookmark there. It copies your{" "}
+              <code>espn_s2</code> and <code>SWID</code> to your clipboard and sends them nowhere.
+            </li>
+            <li>Come back here, paste, and hit {espnConnected ? "Replace" : "Connect"}.</li>
+          </ol>
 
-          {espnError && <p className="error">{espnError}</p>}
-          {espnSaved && <p className="success">{espnSaved}</p>}
-          <div className="form-row">
-            <button
-              type="submit"
-              disabled={savingEspn || (!espnPaste.trim() && !(espnS2.trim() && swid.trim()))}
-            >
-              {savingEspn ? "Saving..." : espnConnected ? "Replace" : "Connect"}
-            </button>
-            {espnConnected && (
-              <button type="button" onClick={handleDisconnectEspn} disabled={savingEspn}>
-                Disconnect
+          <form onSubmit={handleSaveEspn} style={{ maxWidth: "460px" }}>
+            <label className="espn-paste-label">
+              Paste from ESPN
+              <textarea
+                rows={3}
+                value={espnPaste}
+                onChange={(e) => setEspnPaste(e.target.value)}
+                placeholder={espnConnected ? "Saved - paste again to replace it" : "espn_s2=...; SWID={...}"}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+            <p className="hint">
+              A whole cookie dump is fine too &mdash; only <code>espn_s2</code> and <code>SWID</code> are picked out,
+              here in your browser, and only those two are sent to the server.
+            </p>
+
+            <details className="espn-manual">
+              <summary>Enter them separately instead</summary>
+              <p className="hint">
+                Sign in at fantasy.espn.com, open your browser's developer tools &rarr; Application (or Storage) &rarr;
+                Cookies &rarr; espn.com, and copy each value.
+              </p>
+              <div className="form-row" style={{ flexDirection: "column", alignItems: "stretch" }}>
+                <label>
+                  espn_s2
+                  <input
+                    type="password"
+                    value={espnS2}
+                    onChange={(e) => setEspnS2(e.target.value)}
+                    placeholder={espnConnected ? "Saved - paste a new value to replace it" : "AEB..."}
+                    autoComplete="off"
+                  />
+                </label>
+                <label>
+                  SWID
+                  <input
+                    type="password"
+                    value={swid}
+                    onChange={(e) => setSwid(e.target.value)}
+                    placeholder={espnConnected ? "Saved - paste a new value to replace it" : "{XXXXXXXX-XXXX-...}"}
+                    autoComplete="off"
+                  />
+                </label>
+              </div>
+            </details>
+
+            {espnError && <p className="error">{espnError}</p>}
+            {espnSaved && <p className="success">{espnSaved}</p>}
+            <div className="form-row">
+              <button
+                type="submit"
+                disabled={savingEspn || (!espnPaste.trim() && !(espnS2.trim() && swid.trim()))}
+              >
+                {savingEspn ? "Saving..." : espnConnected ? "Replace" : "Connect"}
               </button>
-            )}
-          </div>
-        </form>
-        <p className="hint">
-          These are as sensitive as your ESPN password. They're stored only on this server, used only for your own
-          requests, and never sent back to the browser once saved. ESPN expires them every few weeks &mdash; re-run
-          the bookmarklet when claims stop showing up.
-        </p>
-      </div>
+              {espnConnected && (
+                <button type="button" onClick={handleDisconnectEspn} disabled={savingEspn}>
+                  Disconnect
+                </button>
+              )}
+            </div>
+          </form>
+          <p className="hint">
+            These are as sensitive as your ESPN password. They're stored only on this server, used only for your own
+            requests, and never sent back to the browser once saved. ESPN expires them every few weeks &mdash; re-run
+            the bookmarklet when claims stop showing up.
+          </p>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} style={{ maxWidth: "320px" }}>
         <div className="form-row" style={{ flexDirection: "column", alignItems: "stretch" }}>

@@ -177,6 +177,7 @@ function App() {
           <SettingsTab
             email={user.email}
             displayName={user.display_name}
+            isPremium={user.is_premium}
             onDisplayNameChange={(displayName) => setUser((prev) => (prev ? { ...prev, display_name: displayName } : prev))}
             league={league}
             leagues={leagues}

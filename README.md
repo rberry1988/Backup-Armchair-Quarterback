@@ -50,7 +50,8 @@ teams, and scoring rules) and gives you three things every week:
 - **Bench Points** — every past week's real starting lineup scored against
   the best lineup that same roster could have fielded, with the specific
   swaps you missed and a season running total.
-- **Pending Moves** (premium) — on the Waivers tab, the waiver claims,
+- **Pending Moves** (premium, needs a connected ESPN account) — on the
+  Waivers tab, the waiver claims,
   free-agent adds and trade offers you have genuinely submitted in ESPN and
   that ESPN hasn't processed yet, read live from ESPN. Needs your own ESPN
   account connected (see below). Read-only: this app never submits or
@@ -60,7 +61,9 @@ teams, and scoring rules) and gives you three things every week:
 
 Public ESPN leagues work with no setup at all. For a **private** league,
 or for real pending claims, connect your own ESPN account under
-**Settings → Account**. That page has a **Get ESPN cookies** bookmarklet:
+**Settings → Account** — a premium-only section, since what it unlocks is
+a premium panel (the section is hidden for basic accounts, and its
+endpoints refuse them). That page has a **Get ESPN cookies** bookmarklet:
 drag it to your bookmarks bar, click it once while signed in on
 fantasy.espn.com, and it copies your `espn_s2` and `SWID` to the
 clipboard — paste that back into the app and hit Connect. (Pasting a whole

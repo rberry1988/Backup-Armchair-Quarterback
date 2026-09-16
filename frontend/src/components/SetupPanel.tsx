@@ -3,6 +3,9 @@ import type { LeagueSummary } from "../types";
 import { ApiError, api } from "../api";
 
 interface Props {
+  // Only premium accounts can connect an ESPN session, so only they are
+  // pointed at it as the way to reach a private league.
+  isPremium: boolean;
   league: LeagueSummary | null;
   leagues: LeagueSummary[];
   onLeagueChange: (league: LeagueSummary) => void;
@@ -22,6 +25,7 @@ const AUTO_SYNC_CHOICES: { value: number; label: string }[] = [
 ];
 
 export function SetupPanel({
+  isPremium,
   league,
   leagues,
   onLeagueChange,
@@ -113,9 +117,10 @@ export function SetupPanel({
       </div>
       {error && <p className="error">{error}</p>}
       <p className="hint">
-        Find your league ID in the ESPN Fantasy URL: fantasy.espn.com/football/league?leagueId=<b>123456</b>.
-        Public leagues work as-is; for a private one, connect your ESPN account under <b>Account</b> below
-        first.
+        Find your league ID in the ESPN Fantasy URL: fantasy.espn.com/football/league?leagueId=<b>123456</b>.{" "}
+        {isPremium
+          ? "Public leagues work as-is; for a private one, connect your ESPN account under Account below first."
+          : "Only public leagues are supported on a basic account."}
       </p>
 
       {leagues.length > 0 && (

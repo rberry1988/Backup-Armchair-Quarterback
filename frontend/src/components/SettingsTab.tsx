@@ -5,6 +5,7 @@ import type { LeagueSummary } from "../types";
 interface Props {
   email: string;
   displayName: string | null;
+  isPremium: boolean;
   onDisplayNameChange: (displayName: string | null) => void;
   league: LeagueSummary | null;
   leagues: LeagueSummary[];
@@ -17,6 +18,7 @@ interface Props {
 export function SettingsTab({
   email,
   displayName,
+  isPremium,
   onDisplayNameChange,
   league,
   leagues,
@@ -28,6 +30,7 @@ export function SettingsTab({
   return (
     <>
       <SetupPanel
+        isPremium={isPremium}
         league={league}
         leagues={leagues}
         onLeagueChange={onLeagueChange}
@@ -36,7 +39,12 @@ export function SettingsTab({
         onLeagueSelect={onLeagueSelect}
       />
       <div style={{ marginTop: "1.25rem" }}>
-        <AccountTab email={email} displayName={displayName} onDisplayNameChange={onDisplayNameChange} />
+        <AccountTab
+          email={email}
+          displayName={displayName}
+          isPremium={isPremium}
+          onDisplayNameChange={onDisplayNameChange}
+        />
       </div>
     </>
   );

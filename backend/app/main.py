@@ -158,8 +158,18 @@ def update_display_name(
     return _user_out(current_user)
 
 
+# Connecting an ESPN account is premium: what it unlocks — real pending
+# claims — is a premium panel, so the setup for it lives behind the same
+# gate. Enforced here and not only by hiding the section in Settings, as
+# with every other premium feature.
+#
+# One consequence worth knowing: an account demoted to basic keeps whatever
+# cookies it already saved, and its own syncs keep using them, but it can no
+# longer see or clear them from Settings until premium is restored. Leaving
+# them in place was the better of the two wrong answers — clearing them on
+# demotion would silently break that person's private-league sync.
 @app.get("/api/auth/espn-credentials", response_model=EspnCredentialsStatus)
-def get_espn_credentials(current_user: User = Depends(get_current_user)):
+def get_espn_credentials(current_user: User = Depends(require_premium)):
     """Whether this account has ESPN cookies saved. Never returns the
     cookies themselves — see EspnCredentialsStatus."""
     return EspnCredentialsStatus(connected=bool(current_user.espn_s2 and current_user.espn_swid))
@@ -168,7 +178,7 @@ def get_espn_credentials(current_user: User = Depends(get_current_user)):
 @app.post("/api/auth/espn-credentials", response_model=EspnCredentialsStatus)
 def set_espn_credentials(
     payload: EspnCredentialsRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_premium),
     db: Session = Depends(get_db),
 ):
     """Save (or clear) this account's own ESPN session cookies.
