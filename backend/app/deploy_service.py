@@ -27,6 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 FRONTEND_DIR = REPO_ROOT / "frontend"
 BACKEND_DIR = REPO_ROOT / "backend"
 VENV_PIP = BACKEND_DIR / ".venv" / "bin" / "pip"
+VENV_PYTHON = BACKEND_DIR / ".venv" / "bin" / "python"
 
 # Generous: a cold `npm install` after a dependency bump can genuinely take
 # a couple of minutes. nginx's proxy_read_timeout is raised to match (see
@@ -103,10 +104,14 @@ def run_update() -> dict:
     # The venv's own pip if this is a real deployment; falling back to
     # `python -m pip` only matters for exercising this function somewhere
     # without a backend/.venv (e.g. tests).
+    # --timeout/--retries because pip's defaults give up quickly on a slow
+    # mirror, and a dependency bump that downloads several large wheels is
+    # exactly when that bites. A blip here used to leave the venv
+    # half-upgraded; the preflight below is the backstop for when it still
+    # does.
+    pip_flags = ["install", "-q", "--timeout", "60", "--retries", "5", "-r", "requirements.txt"]
     pip_cmd = (
-        [str(VENV_PIP), "install", "-q", "-r", "requirements.txt"]
-        if VENV_PIP.exists()
-        else [sys.executable, "-m", "pip", "install", "-q", "-r", "requirements.txt"]
+        [str(VENV_PIP), *pip_flags] if VENV_PIP.exists() else [sys.executable, "-m", "pip", *pip_flags]
     )
     pip_step = _run(pip_cmd, BACKEND_DIR)
     steps.append(pip_step)
@@ -122,6 +127,31 @@ def run_update() -> dict:
     steps.append(npm_build)
     if not npm_build["ok"]:
         return {"error": "npm_build_failed", "changed": True, "steps": steps, "restarting": False}
+
+    # Never restart into a build that can't start. If pip died partway
+    # through (a network timeout mid-download is the realistic case) the
+    # venv is left importable-but-broken, and restarting would take a
+    # working app offline with no way back in through the UI — the Admin
+    # tab that triggered this is behind the login it just broke. Importing
+    # the app in a subprocess is the cheapest honest check that the new
+    # code actually runs; failing it leaves the current process serving
+    # the old code, which is the safe side to fail on.
+    python_cmd = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable
+    preflight = _run([python_cmd, "-c", "import app.main"], BACKEND_DIR)
+    steps.append(preflight)
+    if not preflight["ok"]:
+        return {
+            "error": "preflight_failed",
+            "detail": (
+                "The updated code failed to import, so the restart was skipped and the app is still "
+                "running the previous version. This usually means the dependency install didn't "
+                "finish — re-run Update, or on the server: "
+                "backend/.venv/bin/pip install -r backend/requirements.txt"
+            ),
+            "changed": True,
+            "steps": steps,
+            "restarting": False,
+        }
 
     _schedule_restart()
     return {"changed": True, "steps": steps, "restarting": True}

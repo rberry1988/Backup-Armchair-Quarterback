@@ -437,8 +437,12 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
           <div style={{ marginTop: "0.75rem" }}>
             {updateResult.error === "request_failed" && <p className="error">{updateResult.detail}</p>}
             {updateResult.error === "not_a_git_checkout" && <p className="error">{updateResult.detail}</p>}
+            {/* Distinct from the generic step failure below: the app is
+                still up and serving the old code, which is worth saying
+                plainly rather than leaving as "failed at: preflight". */}
+            {updateResult.error === "preflight_failed" && <p className="error">{updateResult.detail}</p>}
             {updateResult.error &&
-              !["request_failed", "not_a_git_checkout"].includes(updateResult.error) && (
+              !["request_failed", "not_a_git_checkout", "preflight_failed"].includes(updateResult.error) && (
                 <p className="error">
                   Failed at: {updateResult.error.replace(/_/g, " ")}. See the step output below.
                 </p>
