@@ -1,9 +1,14 @@
 /** Turns a matchup rating into the sentence behind it.
  *
  * "Tough matchup" on its own is an assertion; this is the evidence for it —
- * what this defense actually gives up to this position, how that compares
- * to the rest of the league, and where it ranks. See
- * backend/app/matchup.py for where the numbers come from.
+ * what this defense actually gives up to this position per game, how that
+ * compares to the rest of the league, and where it ranks.
+ *
+ * The numbers are real yardage wherever possible (rushing yards to RBs,
+ * receiving to WRs and TEs, passing to QBs), not fantasy points: explaining
+ * a points projection with points allowed is circular, and yardage is the
+ * thing the projection is itself derived from. See backend/app/matchup.py
+ * and backend/app/advanced_stats.py.
  */
 
 import type { MatchupContext } from "./types";
@@ -14,11 +19,9 @@ function ordinal(n: number): string {
   return `${n}${["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
 }
 
-/** One decimal, always. These numbers sit side by side in a sentence, and
- * "5 pts/gm ... 8 league average" next to "16.3" reads like a different
- * kind of measurement rather than the same one with a round value. */
-function fmt(n: number): string {
-  return n.toFixed(1);
+/** Yardage reads as whole numbers; rates and points want a decimal. */
+function fmt(n: number, decimals: number): string {
+  return n.toFixed(decimals);
 }
 
 function plural(position: string | null | undefined): string {
@@ -41,33 +44,49 @@ export function matchupDetail(matchup: MatchupContext | null): string | null {
   }
 
   if (matchup.source === "dst_projection") {
-    // The fallback rating: an opponent's own projected D/ST score as a
-    // stand-in for defensive strength. Worth labelling as the rougher
-    // measure it is rather than dressing it up.
+    // The weakest rating: an opponent's own projected D/ST score standing
+    // in for defensive strength. Worth labelling as the guess it is.
     const placing = tough
       ? `${ordinal(rank)} strongest of ${total}`
       : favorable
         ? `${ordinal(total - rank + 1)} weakest of ${total}`
         : `${ordinal(rank)} of ${total}`;
-    return `${opponent}'s defense is projected for ${fmt(value)} fantasy points this week — ${placing}. Rough estimate: no points-allowed data for them yet.`;
+    return `${opponent}'s defense is projected for ${fmt(value, 1)} fantasy points this week — ${placing}. Rough estimate: no real defensive data for them yet.`;
   }
 
-  const scale = `${fmt(value)} pts/gm to ${plural(matchup.position)}`;
+  // Whole yards, one decimal for anything else.
+  const decimals = matchup.source === "yards_allowed" ? 0 : 1;
+  const unit = matchup.metric ?? "pts";
+  const scale = `${fmt(value, decimals)} ${unit}/gm to ${plural(matchup.position)}`;
+
   // Built once so `avg` is narrowed alongside the gap derived from it, and
-  // so a zero gap drops the clause rather than claiming "0.0 below".
+  // so a zero gap drops the clause rather than claiming "0 below".
   const gapFrom = (direction: "below" | "above"): string => {
     if (avg == null) return "";
-    const gap = Math.abs(Math.round((value - avg) * 10) / 10);
-    return gap > 0 ? `${fmt(gap)} ${direction} the ${fmt(avg)} league average, ` : "";
+    const gap = Math.abs(value - avg);
+    const shown = fmt(gap, decimals);
+    return Number(shown) > 0 ? `${shown} ${direction} the ${fmt(avg, decimals)} league average, ` : "";
+  };
+
+  // TDs allowed add the part yardage misses: a defense can bend between the
+  // 20s and still not concede, or vice versa. Only worth saying when it
+  // actually differs from the league norm.
+  const tdNote = (): string => {
+    const { tds, tds_league_average: tdAvg } = matchup;
+    if (tds == null || tdAvg == null || tdAvg === 0) return "";
+    const ratio = tds / tdAvg;
+    if (ratio >= 1.25) return ` They also give up more TDs than most (${fmt(tds, 1)}/gm vs ${fmt(tdAvg, 1)} average).`;
+    if (ratio <= 0.75) return ` They also concede few TDs (${fmt(tds, 1)}/gm vs ${fmt(tdAvg, 1)} average).`;
+    return "";
   };
 
   if (tough) {
-    return `${opponent} allows ${scale} — ${gapFrom("below")}${ordinal(rank)} stingiest of ${total}.`;
+    return `${opponent} allows ${scale} — ${gapFrom("below")}${ordinal(rank)} stingiest of ${total}.${tdNote()}`;
   }
   if (favorable) {
-    return `${opponent} allows ${scale} — ${gapFrom("above")}${ordinal(total - rank + 1)} most generous of ${total}.`;
+    return `${opponent} allows ${scale} — ${gapFrom("above")}${ordinal(total - rank + 1)} most generous of ${total}.${tdNote()}`;
   }
   return avg != null
-    ? `${opponent} allows ${scale} — about the ${fmt(avg)} league average (${ordinal(rank)} of ${total}).`
-    : `${opponent} allows ${scale} — ${ordinal(rank)} of ${total}.`;
+    ? `${opponent} allows ${scale} — about the ${fmt(avg, decimals)} league average (${ordinal(rank)} of ${total}).${tdNote()}`
+    : `${opponent} allows ${scale} — ${ordinal(rank)} of ${total}.${tdNote()}`;
 }

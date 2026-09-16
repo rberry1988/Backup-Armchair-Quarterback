@@ -100,3 +100,37 @@ def is_bench_slot(slot_id: int) -> bool:
 
 def pro_team_abbr(pro_team_id: int | None) -> str:
     return PRO_TEAM_ABBREVIATIONS.get(pro_team_id, "FA" if not pro_team_id else f"T{pro_team_id}")
+
+
+# ESPN and nflverse disagree about two teams' abbreviations: ESPN says LAR
+# and WSH, nflverse says LA and WAS. Every matchup rating joins an ESPN
+# schedule abbreviation against an nflverse-keyed defensive table, so
+# without this, players facing the Rams or the Commanders silently got no
+# rating at all -- they fell through to the crude D/ST proxy, or to
+# nothing, with no error anywhere to say why.
+#
+# Canonical form is ESPN's, since that's what the schedule (and the rest of
+# this app) is keyed on. The reverse entries exist so a table stored before
+# the normalisation below still resolves.
+_TEAM_ABBR_ALIASES = {
+    "LA": "LAR",
+    "WAS": "WSH",
+}
+
+
+def normalize_team_abbr(abbr: str | None) -> str | None:
+    """An nflverse (or ESPN) team abbreviation in ESPN's spelling."""
+    if not abbr:
+        return abbr
+    return _TEAM_ABBR_ALIASES.get(abbr, abbr)
+
+
+def team_abbr_candidates(abbr: str | None) -> list[str]:
+    """Every spelling a lookup should try for this team, canonical first.
+    Needed because a league synced before normalisation existed still has
+    nflverse spellings stored in its defensive tables."""
+    if not abbr:
+        return []
+    canonical = normalize_team_abbr(abbr)
+    alternates = [raw for raw, mapped in _TEAM_ABBR_ALIASES.items() if mapped == canonical]
+    return [canonical, *alternates] if canonical else []

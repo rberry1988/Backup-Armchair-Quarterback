@@ -80,6 +80,16 @@ class League(Base):
     # matchup ratings when available (see app/matchup.py); empty if
     # nflverse was unreachable or the player-id crosswalk had no match.
     points_allowed_by_position: Mapped[dict] = mapped_column(JSON, default=dict)
+    # What each defense actually gives up per game to each position, in that
+    # position's own units: {"BUF": {"RB": {"yards", "tds", "points",
+    # "metric", "games"}}}. Rushing yards for RBs, receiving for WRs/TEs,
+    # passing for QBs (see advanced_stats.POSITION_METRICS). This is what
+    # matchup ratings are built from and explained with — fantasy points
+    # allowed ranks fine but explains badly, since judging a projection by
+    # the points behind it is circular. points_allowed_by_position above is
+    # kept as the fallback for leagues synced before this existed and for
+    # positions with no meaningful yardage stat.
+    defense_vs_position: Mapped[dict] = mapped_column(JSON, default=dict)
     # FantasyPros expert consensus rankings: top 10 overall + top 10 per
     # position, for rest-of-season and this week (see
     # app/fantasypros_client.py). Empty unless FANTASYPROS_API_KEY is set;

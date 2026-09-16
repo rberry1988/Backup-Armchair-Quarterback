@@ -125,16 +125,25 @@ export interface MatchupContext {
   defense_rank: number;
   defense_teams_ranked: number;
   label: string;
-  /** Which measure the rating came from: "points_allowed" is the real
-   * PPR points-per-game this defense gives up to this position;
-   * "dst_projection" is the cruder stand-in used before nflverse data
-   * exists for a team (see backend/app/matchup.py). */
-  source?: "points_allowed" | "dst_projection";
+  /** Which measure the rating came from, best first:
+   * "yards_allowed"  — real per-game yardage this defense gives up to this
+   *                    position (rushing to RBs, receiving to WRs/TEs,
+   *                    passing to QBs);
+   * "points_allowed" — PPR fantasy points allowed, for K/D/ST and for
+   *                    leagues synced before the yardage data existed;
+   * "dst_projection" — the crude stand-in when nflverse was unreachable.
+   * See backend/app/matchup.py. */
+  source?: "yards_allowed" | "points_allowed" | "dst_projection";
   position?: string | null;
-  /** The number behind the label — points allowed per game, or the
-   * opponent D/ST's projected score under the fallback. */
+  /** The number behind the label, in whatever `metric` names. */
   value?: number | null;
   league_average?: number | null;
+  /** Short unit label for `value`, e.g. "rush yds", "rec yds", "fantasy pts". */
+  metric?: string | null;
+  /** Touchdowns allowed per game to this position, where known. */
+  tds?: number | null;
+  tds_league_average?: number | null;
+  games?: number | null;
 }
 
 export interface StartSitPlayer {

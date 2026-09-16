@@ -19,10 +19,13 @@ teams, and scoring rules) and gives you three things every week:
   their opponent this week and a tough/average/favorable label, based on
   real points-allowed-by-position data where available (see nflverse
   below), and **suggested FAAB bids** on waiver adds. Start/Sit shows the
-  numbers behind each label rather than asking you to take it on faith —
-  what that defense actually gives up per game to that position, how far
-  that is from the league average, and where it ranks — so you can
-  disagree with the rating on the evidence.
+  numbers behind each label rather than asking you to take it on faith,
+  in the units the position is actually judged in — rushing yards allowed
+  for RBs, receiving yards for WRs and TEs, passing yards for QBs, with
+  the league average and the rank alongside. Explaining a points
+  projection with points allowed would be circular; yardage is the thing
+  underneath it. K and D/ST have no such stat, so they still rate on
+  fantasy points allowed and say so.
 - **Usage trends** — Roster and Waivers show each player's last few played
   weeks of targets, carries, receptions, or pass attempts, plus (when
   available) real target share and snap % from nflverse — an up/down/flat

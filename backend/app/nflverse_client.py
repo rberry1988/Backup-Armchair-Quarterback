@@ -93,6 +93,17 @@ _NUMERIC_STAT_FIELDS = [
     "targets",
     "receptions",
     "receiving_yards",
+    # Rushing and passing yardage, plus every TD field, feed
+    # advanced_stats.compute_defense_vs_position — what a defense actually
+    # gives up to each position. A field left out of this list is simply
+    # absent from the parsed rows, so anything reading it degrades silently
+    # rather than failing loudly; that is exactly how RB and QB matchups
+    # quietly fell back to fantasy points before these were added.
+    "rushing_yards",
+    "passing_yards",
+    "rushing_tds",
+    "passing_tds",
+    "receiving_tds",
     "receiving_air_yards",
     "receiving_yards_after_catch",
     "target_share",

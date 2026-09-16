@@ -78,6 +78,7 @@ def init_db():
         _ensure_column(conn, "users", "espn_swid", "VARCHAR")
         _ensure_column(conn, "leagues", "fantasycalc_values", "JSON DEFAULT '{}'")
         _ensure_column(conn, "leagues", "fantasypros_injuries", "JSON DEFAULT '{}'")
+        _ensure_column(conn, "leagues", "defense_vs_position", "JSON DEFAULT '{}'")
         _ensure_column(conn, "leagues", "auto_sync_enabled", "BOOLEAN NOT NULL DEFAULT 0")
         _ensure_column(conn, "leagues", "auto_sync_interval_hours", "INTEGER NOT NULL DEFAULT 12")
         _ensure_column(conn, "leagues", "auto_synced_at", "DATETIME")

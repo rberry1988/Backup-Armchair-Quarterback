@@ -5,6 +5,7 @@ import datetime
 from sqlalchemy.orm import Session
 
 from app.advanced_stats import (
+    compute_defense_vs_position,
     compute_points_allowed_by_position,
     get_advanced_stats_for_player,
     index_snaps_by_pfr,
@@ -277,6 +278,7 @@ def sync_league(
                 row.captured_at = now
 
         league.points_allowed_by_position = compute_points_allowed_by_position(weekly_stats_rows, through_week=week)
+        league.defense_vs_position = compute_defense_vs_position(weekly_stats_rows, through_week=week)
 
     # FantasyPros expert consensus rankings (top 10 overall + per position,
     # rest-of-season + this week) — optional, only if a key is configured
