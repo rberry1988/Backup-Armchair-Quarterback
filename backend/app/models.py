@@ -35,6 +35,20 @@ class User(Base):
     # account's email; null/empty falls back to the email everywhere (see
     # main.py's /api/auth/me and /api/auth/display-name).
     display_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    # This account's own ESPN session cookies, pasted in from Settings ->
+    # Account. ESPN scopes anything private — pending waiver claims above
+    # all — to the account the cookies belong to, so reading a user's real
+    # claims is only possible with *their* cookies; the single operator-level
+    # ESPN_S2/ESPN_SWID in backend/.env is shared by everyone on this
+    # instance and would show one person's moves to the whole league (the
+    # same exposure the /api/sync guard in main.py exists to prevent).
+    # Stored as written because ESPN needs them verbatim on every request —
+    # they're bearer credentials, not verifiers, so hashing isn't an option.
+    # They are never sent back to any client, including their owner: see
+    # main.py's /api/auth/espn-credentials, which reports only whether they
+    # are set.
+    espn_s2: Mapped[str | None] = mapped_column(String, nullable=True)
+    espn_swid: Mapped[str | None] = mapped_column(String, nullable=True)
 
     leagues: Mapped[list["League"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 

@@ -114,7 +114,8 @@ export function SetupPanel({
       {error && <p className="error">{error}</p>}
       <p className="hint">
         Find your league ID in the ESPN Fantasy URL: fantasy.espn.com/football/league?leagueId=<b>123456</b>.
-        Only public leagues are supported out of the box.
+        Public leagues work as-is; for a private one, connect your ESPN account under <b>Account</b> below
+        first.
       </p>
 
       {leagues.length > 0 && (

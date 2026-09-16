@@ -22,7 +22,7 @@ import logging
 from sqlalchemy import update
 
 from app.db import SessionLocal
-from app.models import League
+from app.models import League, User
 from app.sync_service import sync_league
 
 logger = logging.getLogger(__name__)
@@ -81,8 +81,19 @@ def _sync_one(league_id: int) -> None:
         if league is None:
             return
         user_id, espn_league_id, season = league.user_id, league.espn_league_id, league.season
+        # The league's owner, so a private league keeps syncing on a
+        # schedule with the same credentials its owner synced it by hand
+        # with (see User.espn_s2).
+        owner = db.get(User, user_id)
         try:
-            sync_league(db, user_id=user_id, espn_league_id=espn_league_id, season=season)
+            sync_league(
+                db,
+                user_id=user_id,
+                espn_league_id=espn_league_id,
+                season=season,
+                espn_s2=owner.espn_s2 if owner else None,
+                espn_swid=owner.espn_swid if owner else None,
+            )
             error = None
         except Exception as exc:  # noqa: BLE001 — see docstring
             db.rollback()

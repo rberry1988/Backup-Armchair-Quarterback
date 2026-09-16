@@ -1,9 +1,13 @@
-"""Thin wrapper around ESPN's undocumented public fantasy football API.
+"""Thin wrapper around ESPN's undocumented fantasy football API.
 
-Only the read-only endpoints needed for a public league are used:
-no login/cookie flow is implemented. If ESPN ever requires cookies for a
-league that used to be public, set ESPN_S2 / ESPN_SWID in .env and they'll
-be sent automatically (see `_cookies`).
+Read-only throughout: nothing here ever submits a transaction, changes a
+lineup, or writes anything back to ESPN.
+
+Requests are made either anonymously (fine for a public league), with the
+instance-wide ESPN_S2 / ESPN_SWID from .env, or as one specific user by
+passing their own cookies to the constructor — see `_cookies`. That last
+mode is what makes per-account private data such as pending waiver claims
+readable at all, since ESPN scopes it to the session that owns it.
 """
 
 from __future__ import annotations
@@ -143,22 +147,61 @@ def compute_bye_weeks(season_schedule: dict[int, dict[int, dict]]) -> dict[int, 
     return byes
 
 
+def normalize_swid(swid: str | None) -> str:
+    """ESPN's SWID cookie is a brace-wrapped UUID ("{XXXXXXXX-....}"), and
+    it rejects the value without the braces. People copying it out of their
+    browser's cookie inspector routinely lose them, so put them back rather
+    than failing with an opaque 401."""
+    if not swid:
+        return ""
+    swid = swid.strip()
+    if not swid:
+        return ""
+    if not swid.startswith("{"):
+        swid = "{" + swid
+    if not swid.endswith("}"):
+        swid = swid + "}"
+    return swid
+
+
 class ESPNClientError(RuntimeError):
     pass
 
 
 class ESPNClient:
-    def __init__(self, league_id: int, season: int):
+    def __init__(
+        self,
+        league_id: int,
+        season: int,
+        espn_s2: str | None = None,
+        espn_swid: str | None = None,
+    ):
+        """`espn_s2`/`espn_swid` are one specific person's ESPN session (see
+        User.espn_s2 in models.py). When given they're used *instead of* the
+        operator-level cookies in backend/.env, never merged with them —
+        mixing a caller's SWID with the operator's espn_s2 would just be a
+        broken session, and silently falling back to the operator's would
+        return that person's private data under someone else's request."""
         self.league_id = league_id
         self.season = season
         self.base_url = BASE_URL.format(season=season, league_id=league_id)
+        self.espn_s2 = espn_s2
+        self.espn_swid = espn_swid
+
+    @property
+    def is_authenticated_as_user(self) -> bool:
+        """True when this client is acting as a specific person's ESPN
+        account rather than the instance's shared credentials."""
+        return bool(self.espn_s2 and self.espn_swid)
 
     def _cookies(self) -> dict[str, str]:
+        if self.is_authenticated_as_user:
+            return {"espn_s2": self.espn_s2, "SWID": normalize_swid(self.espn_swid)}
         cookies = {}
         if settings.espn_s2:
             cookies["espn_s2"] = settings.espn_s2
         if settings.espn_swid:
-            cookies["SWID"] = settings.espn_swid
+            cookies["SWID"] = normalize_swid(settings.espn_swid)
         return cookies
 
     def _get(self, params: dict[str, Any], extra_headers: dict[str, str] | None = None) -> dict:
@@ -175,8 +218,9 @@ class ESPNClient:
             raise ESPNClientError(f"Could not reach ESPN: {exc}") from exc
         if resp.status_code == 401:
             raise ESPNClientError(
-                "ESPN returned 401 Unauthorized. This league may be private; "
-                "set ESPN_S2 and ESPN_SWID in backend/.env."
+                "ESPN returned 401 Unauthorized. This league is private, or the ESPN session "
+                "being used has expired. Connect your ESPN account under Settings \u2192 Account "
+                "(or set ESPN_S2 and ESPN_SWID in backend/.env for the whole instance)."
             )
         if resp.status_code == 404:
             raise ESPNClientError(
@@ -221,5 +265,30 @@ class ESPNClient:
         data = self._get(
             {"view": "kona_player_info", "scoringPeriodId": scoring_period_id},
             extra_headers=headers,
+        )
+        return data.get("players", [])
+
+    def get_pending_transactions(self) -> dict:
+        """Everything this ESPN account has submitted but that hasn't been
+        processed yet — waiver claims, free-agent adds queued for the next
+        processing run, and proposed trades.
+
+        ESPN scopes this view to whoever the request's cookies belong to, so
+        it is empty (not an error) when called without an authenticated
+        session. mTeam rides along to name the teams involved.
+        """
+        return self._get({"view": ["mPendingTransactions", "mTeam", "mStatus"]})
+
+    def get_players_by_id(self, player_ids: list[int]) -> list[dict]:
+        """Look up specific players by ESPN id. Pending transactions carry
+        only ids, and a claim for someone outside the synced player pool
+        (deep waiver-wire adds, mainly) would otherwise show as a bare
+        number."""
+        if not player_ids:
+            return []
+        filter_payload = {"players": {"filterIds": {"value": player_ids}, "limit": len(player_ids)}}
+        data = self._get(
+            {"view": "kona_player_info"},
+            extra_headers={"x-fantasy-filter": json.dumps(filter_payload)},
         )
         return data.get("players", [])

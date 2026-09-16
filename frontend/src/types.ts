@@ -180,6 +180,37 @@ export interface WaiverGroup<T> {
   suggestions: T[];
 }
 
+/** A player on one side of a pending ESPN transaction. */
+export interface ClaimPlayer {
+  espn_player_id: number;
+  name: string;
+  position: string;
+}
+
+/** A move genuinely submitted in ESPN and not yet processed. */
+export interface PendingClaim {
+  id: string;
+  type: string;
+  label: string;
+  bid_amount: number | null;
+  scoring_period_id: number | null;
+  proposed_at: string | null;
+  adds: ClaimPlayer[];
+  drops: ClaimPlayer[];
+}
+
+export interface PendingClaimsResponse {
+  /** False when this account hasn't saved its ESPN cookies — the normal
+   * starting state, not a failure. */
+  connected: boolean;
+  claims: PendingClaim[];
+  error: string | null;
+}
+
+export interface EspnCredentialsStatus {
+  connected: boolean;
+}
+
 export interface PlannedMove {
   id: number;
   add_espn_player_id: number;

@@ -81,6 +81,25 @@ class UpdateDisplayNameRequest(BaseModel):
         return v.strip()
 
 
+class EspnCredentialsRequest(BaseModel):
+    """A user's own ESPN session cookies. Sending either one empty clears
+    both — a half-set session isn't usable, and "disconnect" should be one
+    action rather than two."""
+
+    # Generous bounds: espn_s2 is a long opaque blob (~300+ chars and it has
+    # grown before), SWID is a brace-wrapped UUID.
+    espn_s2: str = Field(default="", max_length=2000)
+    swid: str = Field(default="", max_length=100)
+
+
+class EspnCredentialsStatus(BaseModel):
+    """Deliberately says only *whether* cookies are saved. They're bearer
+    credentials to someone's whole ESPN account, so they are never sent
+    back out — not even to the person who saved them."""
+
+    connected: bool
+
+
 class AdminUserOut(BaseModel):
     id: int
     email: str

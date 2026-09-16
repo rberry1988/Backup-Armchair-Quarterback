@@ -74,6 +74,8 @@ def init_db():
         _ensure_column(conn, "users", "admin_granted", "BOOLEAN NOT NULL DEFAULT 0")
         _ensure_column(conn, "users", "is_premium", "BOOLEAN NOT NULL DEFAULT 0")
         _ensure_column(conn, "users", "display_name", "VARCHAR")
+        _ensure_column(conn, "users", "espn_s2", "VARCHAR")
+        _ensure_column(conn, "users", "espn_swid", "VARCHAR")
         _ensure_column(conn, "leagues", "fantasycalc_values", "JSON DEFAULT '{}'")
         _ensure_column(conn, "leagues", "fantasypros_injuries", "JSON DEFAULT '{}'")
         _ensure_column(conn, "leagues", "auto_sync_enabled", "BOOLEAN NOT NULL DEFAULT 0")

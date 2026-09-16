@@ -50,9 +50,20 @@ teams, and scoring rules) and gives you three things every week:
 - **Bench Points** — every past week's real starting lineup scored against
   the best lineup that same roster could have fielded, with the specific
   swaps you missed and a season running total.
+- **Pending Moves** (premium) — on the Waivers tab, the waiver claims,
+  free-agent adds and trade offers you have genuinely submitted in ESPN and
+  that ESPN hasn't processed yet, read live from ESPN. Needs your own ESPN
+  account connected (see below). Read-only: this app never submits or
+  cancels a claim for you. Underneath it sits your own local shortlist,
+  built with the **Plan** button on any waiver recommendation.
 
-It only supports **public** ESPN leagues (no ESPN login/cookie flow). If
-your league is private, ESPN's data endpoints return 401s.
+Public ESPN leagues work with no setup at all. For a **private** league,
+connect your own ESPN account under **Settings → Account**: paste the
+`espn_s2` and `SWID` cookies from a browser signed in to
+fantasy.espn.com, and this app will read ESPN as you. Those cookies are
+stored per account, used only to serve your own requests, and never sent
+back to any browser once saved. ESPN expires them every few weeks, so
+re-paste them when things start failing with 401s.
 
 Multiple people can use the same instance: each person registers their own
 account and their synced league(s), team selection, and recommendations
@@ -223,6 +234,8 @@ admin, so you can skip straight to step 2.
 3. On the **Setup** tab, enter the league ID and season, click **Sync
    League**.
 4. Pick your team from the dropdown.
+   - Private league, or want your real pending ESPN claims? Connect your
+     ESPN account under **Settings → Account** first (see above), then sync.
 5. Start on **Alerts** — it's what needs a decision right now — then use
    the **Roster**, **Start / Sit**, **Waivers**, **Schedule**, **Trades**,
    and **Trade Grader** tabs. Re-sync any time (e.g. once a week, or after

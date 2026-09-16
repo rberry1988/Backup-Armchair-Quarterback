@@ -4,11 +4,13 @@ import type {
   BenchPointsResponse,
   ChangesResponse,
   DepthChartsResponse,
+  EspnCredentialsStatus,
   ExpertRankingsResponse,
   FantasyProsKeyStatus,
   HandcuffsResponse,
   ScheduleOutlookResponse,
   LeagueSummary,
+  PendingClaimsResponse,
   PlannedMove,
   RosterResponse,
   StartSitResponse,
@@ -96,6 +98,13 @@ export const api = {
       body: JSON.stringify({ display_name: displayName }),
     }),
 
+  getEspnCredentials: () => request<EspnCredentialsStatus>("/api/auth/espn-credentials"),
+  setEspnCredentials: (espnS2: string, swid: string) =>
+    request<EspnCredentialsStatus>("/api/auth/espn-credentials", {
+      method: "POST",
+      body: JSON.stringify({ espn_s2: espnS2, swid }),
+    }),
+
   listLeagues: () => request<LeagueSummary[]>("/api/leagues"),
   sync: (leagueId: number, season: number) =>
     request<LeagueSummary>("/api/sync", {
@@ -109,6 +118,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ team_id: teamId }),
     }),
+  getPendingClaims: (leagueId: number) =>
+    request<PendingClaimsResponse>(`/api/league/${leagueId}/pending-claims`),
   getPlannedMoves: (leagueId: number) => request<PlannedMove[]>(`/api/league/${leagueId}/planned-moves`),
   addPlannedMove: (
     leagueId: number,

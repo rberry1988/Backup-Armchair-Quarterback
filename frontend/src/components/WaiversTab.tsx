@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import type {
+  PendingClaim,
+  PendingClaimsResponse,
   PlannedMove,
   RestOfSeasonSuggestion,
   WaiverGroup,
@@ -169,10 +171,47 @@ function RestOfSeasonTable({
   );
 }
 
+function claimPlayers(players: { name: string; position: string }[]): string {
+  if (players.length === 0) return "-";
+  return players.map((p) => (p.position ? `${p.name} (${p.position})` : p.name)).join(", ");
+}
+
+/** Real, submitted-in-ESPN moves waiting to be processed. Separate from the
+ * local shortlist below it: this is what ESPN will actually act on. */
+function EspnClaims({ claims }: { claims: PendingClaim[] }) {
+  return (
+    <div className="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Move</th>
+            <th>Add</th>
+            <th>Drop</th>
+            <th className="num">Bid</th>
+            <th className="num">Week</th>
+          </tr>
+        </thead>
+        <tbody>
+          {claims.map((c) => (
+            <tr key={c.id}>
+              <td>{c.label}</td>
+              <td>{claimPlayers(c.adds)}</td>
+              <td>{claimPlayers(c.drops)}</td>
+              <td className="num">{c.bid_amount != null ? `$${c.bid_amount}` : "-"}</td>
+              <td className="num">{c.scoring_period_id ?? "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremium: boolean }) {
   const [data, setData] = useState<WaiverResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lens, setLens] = useState<Lens>("this-week");
+  const [claims, setClaims] = useState<PendingClaimsResponse | null>(null);
   const [planned, setPlanned] = useState<PlannedMove[]>([]);
   const [planError, setPlanError] = useState<string | null>(null);
   const [planBusy, setPlanBusy] = useState(false);
@@ -195,6 +234,7 @@ export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremiu
   useEffect(() => {
     if (!isPremium) {
       setPlanned([]);
+      setClaims(null);
       return;
     }
     let ignore = false;
@@ -206,6 +246,16 @@ export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremiu
       .catch(() => {
         // Non-critical panel — leave it empty rather than blocking the
         // recommendations behind an error banner.
+      });
+    // Fetched separately from the shortlist: this one goes out to ESPN, so
+    // it's the slower of the two and shouldn't hold the other up.
+    api
+      .getPendingClaims(leagueId)
+      .then((res) => {
+        if (!ignore) setClaims(res);
+      })
+      .catch(() => {
+        if (!ignore) setClaims(null);
       });
     return () => {
       ignore = true;
@@ -267,10 +317,32 @@ export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremiu
       {isPremium && (
         <div className="planned-moves">
           <h3>Pending Moves</h3>
+
+          <h4>Submitted in ESPN</h4>
+          {claims === null ? (
+            <p className="hint">Checking ESPN&hellip;</p>
+          ) : !claims.connected ? (
+            <p className="hint">
+              Connect your ESPN account under <strong>Settings &rarr; Account</strong> to see the waiver claims and
+              trade offers you've genuinely submitted, straight from ESPN.
+            </p>
+          ) : claims.error ? (
+            <p className="error">{claims.error}</p>
+          ) : claims.claims.length === 0 ? (
+            <p className="hint">
+              No moves are pending in ESPN right now &mdash; anything you submit there shows up here until it
+              processes.
+            </p>
+          ) : (
+            <EspnClaims claims={claims.claims} />
+          )}
+
+          <h4>Your shortlist</h4>
           {planned.length === 0 ? (
             <p className="hint">
               Nothing planned yet. Use <strong>Plan</strong> on any target below to build your claim list for this
-              week &mdash; it's your own shortlist, kept here alongside the recommendations.
+              week &mdash; it's your own shortlist, kept here alongside the recommendations. Submitting a claim
+              still happens in ESPN; anything you submit there appears above.
             </p>
           ) : (
             <div className="table-scroll">

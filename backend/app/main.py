@@ -34,7 +34,8 @@ from app.consistency import get_consistency
 from app.db import get_db, init_db
 from app.deploy_service import run_update
 from app.depth_charts import compute_depth_charts, get_rb_handcuffs
-from app.espn_client import ESPNClientError
+from app.espn_claims import get_pending_claims
+from app.espn_client import ESPNClientError, normalize_swid
 from app.fantasycalc_client import get_trade_value
 from app.fantasypros_client import get_injury_context
 from app.models import League, PlannedMove, RosterEntry, Team, User
@@ -46,6 +47,8 @@ from app.schemas import (
     AdminUserOut,
     AutoSyncRequest,
     ChangePasswordRequest,
+    EspnCredentialsRequest,
+    EspnCredentialsStatus,
     FantasyProsKeyRequest,
     FantasyProsKeyStatus,
     LoginRequest,
@@ -153,6 +156,44 @@ def update_display_name(
     db.commit()
     db.refresh(current_user)
     return _user_out(current_user)
+
+
+@app.get("/api/auth/espn-credentials", response_model=EspnCredentialsStatus)
+def get_espn_credentials(current_user: User = Depends(get_current_user)):
+    """Whether this account has ESPN cookies saved. Never returns the
+    cookies themselves — see EspnCredentialsStatus."""
+    return EspnCredentialsStatus(connected=bool(current_user.espn_s2 and current_user.espn_swid))
+
+
+@app.post("/api/auth/espn-credentials", response_model=EspnCredentialsStatus)
+def set_espn_credentials(
+    payload: EspnCredentialsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Save (or clear) this account's own ESPN session cookies.
+
+    These let the app read what ESPN will only show the account they belong
+    to — chiefly that user's real pending waiver claims — and let them sync
+    their own private leagues without the operator's shared credentials.
+    Strictly per-account: nothing here is ever used to serve another user's
+    request.
+    """
+    espn_s2 = payload.espn_s2.strip()
+    swid = normalize_swid(payload.swid)
+    if not espn_s2 or not swid:
+        # Either half missing means "disconnect" — an espn_s2 without its
+        # SWID (or the reverse) is not a session ESPN will accept, so
+        # storing one alone would only produce confusing 401s later.
+        current_user.espn_s2 = None
+        current_user.espn_swid = None
+        db.commit()
+        return EspnCredentialsStatus(connected=False)
+
+    current_user.espn_s2 = espn_s2
+    current_user.espn_swid = swid
+    db.commit()
+    return EspnCredentialsStatus(connected=True)
 
 
 @app.post("/api/auth/change-password", status_code=204)
@@ -399,14 +440,25 @@ def sync(
     # league that id names into the requester's account — data they have
     # no legitimate access to. Public leagues carry no such risk, so this
     # restriction only kicks in once private-league cookies are in play.
-    if settings.espn_s2 and settings.espn_league_id and not is_admin(current_user):
+    # A user who has saved their *own* ESPN cookies is exempt: the sync
+    # below runs as them, so it can only reach leagues their own ESPN
+    # account can already see.
+    uses_own_espn_account = bool(current_user.espn_s2 and current_user.espn_swid)
+    if settings.espn_s2 and settings.espn_league_id and not is_admin(current_user) and not uses_own_espn_account:
         if payload.league_id != settings.espn_league_id or payload.season != settings.espn_season:
             raise HTTPException(
                 status_code=403,
                 detail="This instance is configured for one private ESPN league; only an admin can sync a different one.",
             )
     try:
-        league = sync_league(db, user_id=current_user.id, espn_league_id=payload.league_id, season=payload.season)
+        league = sync_league(
+            db,
+            user_id=current_user.id,
+            espn_league_id=payload.league_id,
+            season=payload.season,
+            espn_s2=current_user.espn_s2,
+            espn_swid=current_user.espn_swid,
+        )
     except ESPNClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return _league_summary(db, league)
@@ -521,6 +573,20 @@ def delete_planned_move(
         raise HTTPException(status_code=404, detail="Planned move not found")
     db.delete(move)
     db.commit()
+
+
+@app.get("/api/league/{league_id}/pending-claims")
+def list_pending_claims(
+    league_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_premium),
+):
+    """The claims this user has genuinely submitted in ESPN and that ESPN
+    hasn't processed yet. Read straight from ESPN on each request rather
+    than stored: a claim's whole point is that it's about to change, and a
+    stale copy of one is worse than none. See app/espn_claims.py."""
+    league = _owned_league_or_404(db, league_id, current_user)
+    return get_pending_claims(db, league, current_user)
 
 
 @app.post("/api/league/{league_id}/auto-sync")

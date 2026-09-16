@@ -30,8 +30,23 @@ def _team_name(team_json: dict) -> str:
     )
 
 
-def sync_league(db: Session, user_id: int, espn_league_id: int, season: int) -> League:
-    client = ESPNClient(league_id=espn_league_id, season=season)
+def sync_league(
+    db: Session,
+    user_id: int,
+    espn_league_id: int,
+    season: int,
+    espn_s2: str | None = None,
+    espn_swid: str | None = None,
+) -> League:
+    """`espn_s2`/`espn_swid` are the syncing user's own ESPN cookies when
+    they've saved them (see User.espn_s2). Passing them lets someone sync a
+    private league of their own without the operator's instance-wide
+    credentials — and without those credentials being used to read a league
+    the requester has no access to, which is the risk /api/sync guards
+    against when they aren't set."""
+    client = ESPNClient(
+        league_id=espn_league_id, season=season, espn_s2=espn_s2, espn_swid=espn_swid
+    )
     data = client.get_league()
 
     week = data.get("status", {}).get("latestScoringPeriod") or data.get("scoringPeriodId", 1)
