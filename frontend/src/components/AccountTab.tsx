@@ -30,6 +30,15 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
   const [espnSaved, setEspnSaved] = useState<string | null>(null);
   const [savingEspn, setSavingEspn] = useState(false);
   const [bookmarkletCopied, setBookmarkletCopied] = useState(false);
+
+  // Notifications. As with the ESPN cookies, the saved URL is never
+  // readable back from the server -- only whether one exists.
+  const [webhookConfigured, setWebhookConfigured] = useState(false);
+  const [webhookService, setWebhookService] = useState<string | null>(null);
+  const [webhookInput, setWebhookInput] = useState("");
+  const [webhookError, setWebhookError] = useState<string | null>(null);
+  const [webhookSaved, setWebhookSaved] = useState<string | null>(null);
+  const [savingWebhook, setSavingWebhook] = useState(false);
   // React 19 refuses to render a javascript: href, which is exactly what a
   // bookmarklet is, so the attribute is set on the DOM node directly. The
   // link is there to be dragged to a bookmarks bar, not clicked here —
@@ -65,6 +74,57 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
     // the ref is null on the renders where it isn't shown at all.
     bookmarkletRef.current?.setAttribute("href", ESPN_BOOKMARKLET);
   }, [isPremium]);
+
+  useEffect(() => {
+    if (!isPremium) return;
+    let ignore = false;
+    api
+      .getWebhook()
+      .then((s) => {
+        if (ignore) return;
+        setWebhookConfigured(s.configured);
+        setWebhookService(s.service);
+      })
+      .catch(() => {
+        // Non-critical: the section still works, it just starts out
+        // assuming nothing is configured.
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [isPremium]);
+
+  async function handleSaveWebhook(e: FormEvent) {
+    e.preventDefault();
+    setWebhookError(null);
+    setWebhookSaved(null);
+    setSavingWebhook(true);
+    try {
+      const status = await api.setWebhook(webhookInput);
+      setWebhookConfigured(status.configured);
+      setWebhookService(status.service);
+      setWebhookInput("");
+      setWebhookSaved(status.configured ? `Saved. Notifications will go to ${status.service}.` : "Notifications off.");
+    } catch (err) {
+      setWebhookError(err instanceof ApiError ? err.message : "Failed to save that webhook.");
+    } finally {
+      setSavingWebhook(false);
+    }
+  }
+
+  async function handleTestWebhook() {
+    setWebhookError(null);
+    setWebhookSaved(null);
+    setSavingWebhook(true);
+    try {
+      await api.testWebhook();
+      setWebhookSaved("Sent — check your channel.");
+    } catch (err) {
+      setWebhookError(err instanceof ApiError ? err.message : "Couldn't send a test message.");
+    } finally {
+      setSavingWebhook(false);
+    }
+  }
 
   async function handleCopyBookmarklet() {
     try {
@@ -309,6 +369,73 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
             These are as sensitive as your ESPN password. They're stored only on this server, used only for your own
             requests, and never sent back to the browser once saved. ESPN expires them every few weeks &mdash; re-run
             the bookmarklet when claims stop showing up.
+          </p>
+        </div>
+      )}
+
+      {isPremium && (
+        <div className="espn-connect notify-panel">
+          <h3>
+            Notifications{" "}
+            <span className={webhookConfigured ? "success" : "hint"} style={{ fontSize: "0.8rem" }}>
+              {webhookConfigured ? `On \u2014 ${webhookService}` : "Off"}
+            </span>
+          </h3>
+          <p className="hint">
+            Paste a Discord or Slack incoming webhook URL and this app will message you when a starter is ruled out
+            or hits a bye, and when your league changes &mdash; the moments you'd otherwise find out about by
+            happening to open the app. Only those two services are accepted, over https.
+          </p>
+          <p className="hint">
+            In Discord: <strong>Server Settings &rarr; Integrations &rarr; Webhooks &rarr; New Webhook &rarr; Copy
+            Webhook URL</strong>. In Slack: create an <strong>Incoming Webhook</strong> app for the channel you want.
+          </p>
+          <form onSubmit={handleSaveWebhook} style={{ maxWidth: "460px" }}>
+            <label className="espn-paste-label">
+              Webhook URL
+              <input
+                type="password"
+                value={webhookInput}
+                onChange={(e) => setWebhookInput(e.target.value)}
+                placeholder={webhookConfigured ? "Saved - paste a new URL to replace it" : "https://discord.com/api/webhooks/..."}
+                autoComplete="off"
+              />
+            </label>
+            {webhookError && <p className="error">{webhookError}</p>}
+            {webhookSaved && <p className="success">{webhookSaved}</p>}
+            <div className="form-row">
+              <button type="submit" disabled={savingWebhook || !webhookInput.trim()}>
+                {savingWebhook ? "Saving..." : webhookConfigured ? "Replace" : "Save"}
+              </button>
+              {webhookConfigured && (
+                <>
+                  <button type="button" onClick={handleTestWebhook} disabled={savingWebhook}>
+                    Send test
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setSavingWebhook(true);
+                      try {
+                        await api.setWebhook("");
+                        setWebhookConfigured(false);
+                        setWebhookService(null);
+                        setWebhookSaved("Notifications off.");
+                      } finally {
+                        setSavingWebhook(false);
+                      }
+                    }}
+                    disabled={savingWebhook}
+                  >
+                    Turn off
+                  </button>
+                </>
+              )}
+            </div>
+          </form>
+          <p className="hint">
+            A webhook URL lets anyone who has it post into that channel, so it's stored on this server and never sent
+            back to the browser &mdash; same as your ESPN session above.
           </p>
         </div>
       )}

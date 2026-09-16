@@ -100,6 +100,21 @@ class EspnCredentialsStatus(BaseModel):
     connected: bool
 
 
+class WebhookRequest(BaseModel):
+    """Empty/whitespace clears it and turns notifications off."""
+
+    # Bounded here as well as in notifications.webhook_url_error, so an
+    # oversized body is rejected before any of it is parsed as a URL.
+    webhook_url: str = Field(default="", max_length=400)
+
+
+class WebhookStatus(BaseModel):
+    configured: bool
+    # The service the saved URL points at ("Discord"/"Slack"), never the
+    # URL itself — it's a bearer token for posting into someone's channel.
+    service: str | None = None
+
+
 class AdminUserOut(BaseModel):
     id: int
     email: str

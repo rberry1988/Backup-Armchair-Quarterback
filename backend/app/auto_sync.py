@@ -23,6 +23,7 @@ from sqlalchemy import update
 
 from app.db import SessionLocal
 from app.models import League, User
+from app.notifications import run_due_notifications
 from app.sync_service import sync_league
 
 logger = logging.getLogger(__name__)
@@ -131,3 +132,14 @@ async def auto_sync_loop() -> None:
             raise
         except Exception:  # noqa: BLE001 — a scheduler that dies on one bad pass is useless
             logger.exception("Auto-sync pass failed")
+
+        # Notifications ride the same loop but are not gated on a league
+        # being due for a sync: an injury that landed an hour ago should go
+        # out now, not at the next 12-hour refresh. The pass reads only
+        # already-synced data, so running it every interval is cheap.
+        try:
+            await asyncio.to_thread(run_due_notifications)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            logger.exception("Notification pass failed")

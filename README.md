@@ -67,7 +67,21 @@ teams, and scoring rules) and gives you three things every week:
   opponent: both projected lineups side by side, the projected margin, a
   win probability, and the single lineup change that most moves it. The
   probability assumes a typical weekly scoring swing and says so; the
-  margin is the number to trust.
+  margin is the number to trust. **Once games kick off it goes live**:
+  real points as they're scored, who's playing / done / yet to start, and
+  a win probability that tightens as the day resolves, because only
+  unplayed points are still uncertain.
+- **Playoffs** (premium) — the rest of the season simulated a couple of
+  thousand times off the real head-to-head schedule: playoff odds and
+  projected wins per team, plus the strength of everyone's remaining
+  opponents. Team strength comes from points scored per game rather than
+  win-loss record, since fantasy records are noisy and the best team in a
+  league is routinely not the one on top of it.
+- **Notifications** (premium) — paste a Discord or Slack incoming webhook
+  under Settings → Account and the app messages you when a starter is
+  ruled out or hits a bye, and when your league changes. Only those two
+  services are accepted, over https: the server makes the request, so an
+  arbitrary URL there would be a server-side request forgery hole.
 - **Activity** (premium) — the league's transaction log: who claimed whom,
   what it cost, and a per-manager spending profile. Remaining budget says
   what a rival *can* spend; what they've actually paid for past claims is

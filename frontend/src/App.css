@@ -757,3 +757,38 @@ button:disabled {
   font-size: 1.3rem;
   font-weight: 600;
 }
+
+/* Live scoring: game state per player, and a highlight for anyone
+   currently on the field. */
+.live-state {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.live-post {
+  color: #9aa0a6;
+}
+
+.live-in {
+  color: #81c995;
+  font-weight: 600;
+}
+
+.live-pre {
+  color: #c4c7c5;
+}
+
+.live-playing {
+  background: rgba(129, 201, 149, 0.07);
+}
+
+/* Playoff odds: a colour band per tier, so the table reads at a glance. */
+.odds-strong { background: #1e4620; color: #81c995; }
+.odds-live { background: #2a3d5c; color: #8ab4f8; }
+.odds-slim { background: #5c4a1e; color: #fdd663; }
+.odds-dead { background: #5c2b29; color: #f28b82; }
+
+.odds-strong-text { color: #81c995; font-weight: 600; }
+.odds-live-text { color: #8ab4f8; }
+.odds-slim-text { color: #fdd663; }
+.odds-dead-text { color: #f28b82; }

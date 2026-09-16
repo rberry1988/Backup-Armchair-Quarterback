@@ -11,7 +11,9 @@ import type {
   HandcuffsResponse,
   ScheduleOutlookResponse,
   LeagueSummary,
+  LiveMatchupResponse,
   MatchupPreviewResponse,
+  PlayoffOddsResponse,
   PendingClaimsResponse,
   PlannedMove,
   RosterResponse,
@@ -22,6 +24,7 @@ import type {
   UpdateResult,
   User,
   WaiverResponse,
+  WebhookStatus,
 } from "./types";
 
 // ?? (not ||) so an explicitly empty VITE_API_BASE_URL — the production
@@ -107,6 +110,14 @@ export const api = {
       body: JSON.stringify({ espn_s2: espnS2, swid }),
     }),
 
+  getWebhook: () => request<WebhookStatus>("/api/auth/webhook"),
+  setWebhook: (webhookUrl: string) =>
+    request<WebhookStatus>("/api/auth/webhook", {
+      method: "POST",
+      body: JSON.stringify({ webhook_url: webhookUrl }),
+    }),
+  testWebhook: () => request<void>("/api/auth/webhook/test", { method: "POST" }),
+
   listLeagues: () => request<LeagueSummary[]>("/api/leagues"),
   sync: (leagueId: number, season: number) =>
     request<LeagueSummary>("/api/sync", {
@@ -152,6 +163,10 @@ export const api = {
   getMatchupPreview: (leagueId: number) =>
     request<MatchupPreviewResponse>(`/api/league/${leagueId}/matchup-preview`),
   getActivity: (leagueId: number) => request<ActivityResponse>(`/api/league/${leagueId}/activity`),
+  getMatchupLive: (leagueId: number) =>
+    request<LiveMatchupResponse>(`/api/league/${leagueId}/matchup-live`),
+  getPlayoffOdds: (leagueId: number) =>
+    request<PlayoffOddsResponse>(`/api/league/${leagueId}/playoff-odds`),
   getTrades: (leagueId: number) => request<TradeResponse>(`/api/league/${leagueId}/trades`),
   getTeamsWithRosters: (leagueId: number) =>
     request<TeamWithRoster[]>(`/api/league/${leagueId}/teams-with-rosters`),

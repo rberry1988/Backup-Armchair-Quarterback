@@ -72,6 +72,48 @@ def fetch_week_schedule(week: int, season: int) -> dict[int, dict]:
     return _parse_scoreboard(data)
 
 
+def parse_game_states(data: dict) -> dict[int, dict]:
+    """{pro_team_id: {"state", "detail", "completed"}} from a scoreboard.
+
+    `state` is ESPN's own: "pre" (kickoff hasn't happened), "in" (playing),
+    "post" (finished). That distinction is what separates points already
+    banked from points still to come, which is the whole basis of a live
+    win probability.
+    """
+    states: dict[int, dict] = {}
+    for event in data.get("events", []) or []:
+        competition = (event.get("competitions") or [{}])[0]
+        status = (competition.get("status") or event.get("status") or {})
+        type_info = status.get("type") or {}
+        entry = {
+            "state": type_info.get("state") or "pre",
+            "detail": type_info.get("shortDetail") or type_info.get("detail") or "",
+            "completed": bool(type_info.get("completed")),
+        }
+        for competitor in competition.get("competitors", []) or []:
+            try:
+                states[int(competitor["team"]["id"])] = entry
+            except (KeyError, TypeError, ValueError):
+                continue
+    return states
+
+
+def fetch_game_states(week: int, season: int) -> dict[int, dict]:
+    """Live game state per NFL team for `week`. Deliberately uncached —
+    this is the one thing in the app whose entire value is being current.
+    Best-effort: {} on any failure, which the caller renders as "no live
+    data" rather than as every game being unplayed.
+    """
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            resp = client.get(SCOREBOARD_URL, params={"week": week, "seasontype": 2, "year": season})
+        resp.raise_for_status()
+        data = resp.json()
+    except (httpx.HTTPError, ValueError):
+        return {}
+    return parse_game_states(data)
+
+
 def fetch_season_schedule(season: int) -> dict[int, dict[int, dict]]:
     """Every regular-season week's matchups: {week: {pro_team_id: {...}}}.
 

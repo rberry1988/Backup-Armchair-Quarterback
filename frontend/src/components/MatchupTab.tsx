@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import type { MatchupLineupRow, MatchupPreviewResponse, MatchupSide } from "../types";
+import type {
+  LiveMatchupResponse,
+  LivePlayer,
+  LiveSide,
+  MatchupLineupRow,
+  MatchupPreviewResponse,
+  MatchupSide,
+} from "../types";
 import { api } from "../api";
 import { formatPoints } from "../formatPoints";
 import { MatchupTag } from "./MatchupTag";
@@ -56,8 +63,57 @@ function SideColumn({ side, label }: { side: MatchupSide; label: string }) {
   );
 }
 
+/** While games are on, this replaces the pre-game column. The difference
+ * that matters is `banked` vs `estimate`: points already scored are
+ * certain, everything else is still a projection. */
+function LiveColumn({ side, label }: { side: LiveSide; label: string }) {
+  return (
+    <div className="matchup-side">
+      <h3>{side.name}</h3>
+      <p className="matchup-total">
+        {formatPoints(side.banked)}{" "}
+        <span className="hint">
+          scored &middot; {label} &middot; proj. {formatPoints(side.estimate)}
+        </span>
+      </p>
+      <p className="hint">
+        {side.yet_to_play} yet to play, {side.in_progress} in progress
+      </p>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Slot</th>
+              <th>Player</th>
+              <th className="num">Pts</th>
+              <th className="num">Proj.</th>
+              <th>Game</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...side.players]
+              .sort((a, b) => starterSlotRank(a.slot) - starterSlotRank(b.slot))
+              .map((p: LivePlayer, i) => (
+                <tr key={`${p.slot}-${i}`} className={p.state === "in" ? "live-playing" : ""}>
+                  <td>{p.slot}</td>
+                  <td>{p.name}</td>
+                  <td className="num">{formatPoints(p.points)}</td>
+                  <td className="num">{p.projected_points != null ? formatPoints(p.projected_points) : "-"}</td>
+                  <td className={`live-state live-${p.state}`}>
+                    {p.state === "post" ? "Final" : p.state === "in" ? p.detail || "Playing" : p.detail || "Not started"}
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function MatchupTab({ leagueId }: { leagueId: number }) {
   const [data, setData] = useState<MatchupPreviewResponse | null>(null);
+  const [live, setLive] = useState<LiveMatchupResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -72,6 +128,38 @@ export function MatchupTab({ leagueId }: { leagueId: number }) {
       });
     return () => {
       ignore = true;
+    };
+  }, [leagueId]);
+
+  // Fetched separately so the pre-game view (served from the database)
+  // renders immediately instead of waiting on two round trips to ESPN.
+  // Polls only while a game is actually running -- there's nothing to
+  // refresh on a Tuesday, and hammering ESPN is how you get blocked.
+  useEffect(() => {
+    let ignore = false;
+    let timer: number | undefined;
+
+    const poll = () => {
+      api
+        .getMatchupLive(leagueId)
+        .then((res) => {
+          if (ignore) return;
+          setLive(res);
+          if (res.available && res.in_progress) {
+            timer = window.setTimeout(poll, 60_000);
+          }
+        })
+        .catch(() => {
+          // Live data is an enhancement; its absence leaves the pre-game
+          // view intact rather than replacing it with an error.
+          if (!ignore) setLive(null);
+        });
+    };
+
+    poll();
+    return () => {
+      ignore = true;
+      if (timer) window.clearTimeout(timer);
     };
   }, [leagueId]);
 
@@ -91,8 +179,12 @@ export function MatchupTab({ leagueId }: { leagueId: number }) {
     );
   }
 
-  const margin = data.margin ?? 0;
-  const winPct = data.win_probability ?? 50;
+  // Live numbers win once any game has kicked off: they're built from
+  // points already on the board, so they're strictly better informed than
+  // the projection this tab opened with.
+  const isLive = live?.available === true;
+  const margin = isLive ? live.margin : data.margin ?? 0;
+  const winPct = isLive ? live.win_probability : data.win_probability ?? 50;
   const favored = margin > 0;
   const swing = data.biggest_swing;
 
@@ -106,18 +198,30 @@ export function MatchupTab({ leagueId }: { leagueId: number }) {
         <div className={`win-prob ${favored ? "win-prob-good" : "win-prob-bad"}`}>{winPct}%</div>
         <div>
           <p className="verdict">
-            {favored ? "Favored by" : "Trailing by"} {formatPoints(Math.abs(margin))} projected points
+            {favored ? "Up by" : margin < 0 ? "Down by" : "Level —"}{" "}
+            {margin !== 0 && formatPoints(Math.abs(margin))}{" "}
+            {isLive ? "projected, with games in play" : "projected points"}
           </p>
           <p className="hint">
-            {/* The margin is the real number; say plainly what turns it into
-                a percentage rather than implying more precision than exists. */}
-            Win probability assumes a typical weekly swing of about {data.stdev_assumed} points per team. Treat it as
-            a rough read on how safe the margin is, not a forecast.
+            {isLive ? (
+              <>
+                {/* Why the live number deserves more trust than the pre-game
+                    one: the uncertainty it carries is only over what's left. */}
+                Live: {formatPoints(live.me.banked)}&ndash;{formatPoints(live.opponent.banked)} on the board, with{" "}
+                {live.me.yet_to_play + live.opponent.yet_to_play} starters yet to play. The odds tighten as games
+                finish, because only unplayed points are still uncertain.
+              </>
+            ) : (
+              <>
+                Win probability assumes a typical weekly swing of about {data.stdev_assumed} points per team. Treat it
+                as a rough read on how safe the margin is, not a forecast.
+              </>
+            )}
           </p>
         </div>
       </div>
 
-      {swing && (
+      {swing && !isLive && (
         <p className="matchup-swing">
           Biggest single change available: start <strong>{swing.in}</strong> over <strong>{swing.out}</strong> at{" "}
           {swing.slot} &mdash; worth {formatPoints(swing.gain)} points and takes you to{" "}
@@ -126,8 +230,17 @@ export function MatchupTab({ leagueId }: { leagueId: number }) {
       )}
 
       <div className="matchup-grid">
-        <SideColumn side={data.me} label="you" />
-        <SideColumn side={data.opponent} label="them" />
+        {isLive ? (
+          <>
+            <LiveColumn side={live.me} label="you" />
+            <LiveColumn side={live.opponent} label="them" />
+          </>
+        ) : (
+          <>
+            <SideColumn side={data.me} label="you" />
+            <SideColumn side={data.opponent} label="them" />
+          </>
+        )}
       </div>
     </div>
   );

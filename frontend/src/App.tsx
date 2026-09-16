@@ -7,6 +7,7 @@ import { StartSitTab } from "./components/StartSitTab";
 import { WaiversTab } from "./components/WaiversTab";
 import { MatchupTab } from "./components/MatchupTab";
 import { ActivityTab } from "./components/ActivityTab";
+import { PlayoffOddsTab } from "./components/PlayoffOddsTab";
 import { TradeTargetsTab } from "./components/TradeTargetsTab";
 import { AlertsTab } from "./components/AlertsTab";
 import { ScheduleTab } from "./components/ScheduleTab";
@@ -26,6 +27,7 @@ type Tab =
   | "trade-targets"
   | "matchup"
   | "activity"
+  | "playoffs"
   | "extra"
   | "admin";
 
@@ -42,6 +44,7 @@ const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "schedule", label: "Schedule" },
   { id: "trade-targets", label: "Trades" },
   { id: "activity", label: "Activity" },
+  { id: "playoffs", label: "Playoffs" },
   { id: "extra", label: "Extra" },
 ];
 
@@ -131,7 +134,7 @@ function App() {
   const canViewTeamTabs = league?.my_team_id != null;
   // Matchup and Extra are premium; the rest are for everyone. Their
   // endpoints refuse basic accounts too, so this is presentation only.
-  const PREMIUM_TABS: Tab[] = ["matchup", "activity", "extra"];
+  const PREMIUM_TABS: Tab[] = ["matchup", "activity", "playoffs", "extra"];
   const visibleBaseTabs = BASE_TABS.filter((t) => !PREMIUM_TABS.includes(t.id) || user.is_premium);
   const tabs = user.is_admin ? [...visibleBaseTabs, { id: "admin" as const, label: "Admin" }] : visibleBaseTabs;
 
@@ -206,6 +209,7 @@ function App() {
         {tab === "schedule" && league && <ScheduleTab leagueId={league.id} />}
         {tab === "matchup" && league && user.is_premium && <MatchupTab leagueId={league.id} />}
         {tab === "activity" && league && user.is_premium && <ActivityTab leagueId={league.id} />}
+        {tab === "playoffs" && league && user.is_premium && <PlayoffOddsTab leagueId={league.id} />}
         {tab === "extra" && league && user.is_premium && <ExtraTab leagueId={league.id} />}
         {tab === "admin" && user.is_admin && <AdminTab currentUserId={user.id} />}
       </main>

@@ -87,7 +87,11 @@ def get_roster_alerts(db: Session, league_id: int, my_team_id: int) -> dict:
                 "reason": "on bye" if is_bye else player.injury_status,
                 "severity": _severity(player.injury_status, is_bye),
                 "backup": _nfl_backup(depth_charts, player, team.id),
-                "replacements": free_agents_by_position.get(player.position, [])[:REPLACEMENTS_PER_ALERT],
+                "replacements": [
+                    fa
+                    for fa in free_agents_by_position.get(player.position, [])
+                    if fa["espn_player_id"] != player.espn_player_id
+                ][:REPLACEMENTS_PER_ALERT],
             }
         )
 

@@ -40,6 +40,9 @@ from app.fantasycalc_client import get_trade_value
 from app.fantasypros_client import get_injury_context
 from app.models import League, PlannedMove, RosterEntry, Team, User
 from app.schedule_outlook import get_schedule_outlook
+from app.live_scoring import get_live_matchup
+from app.notifications import send_webhook, webhook_url_error
+from app.playoff_odds import get_playoff_odds
 from app.recommendations.matchup_preview import get_matchup_preview
 from app.recommendations.start_sit import get_start_sit
 from app.recommendations.trades import get_trade_suggestions, grade_trade
@@ -61,6 +64,8 @@ from app.schemas import (
     SetPremiumRequest,
     SyncRequest,
     TokenResponse,
+    WebhookRequest,
+    WebhookStatus,
     TradeGradeRequest,
     UpdateDisplayNameRequest,
     UserOut,
@@ -205,6 +210,65 @@ def set_espn_credentials(
     current_user.espn_swid = swid
     db.commit()
     return EspnCredentialsStatus(connected=True)
+
+
+def _webhook_service(url: str | None) -> str | None:
+    if not url:
+        return None
+    return "Slack" if "slack.com" in url else "Discord"
+
+
+@app.get("/api/auth/webhook", response_model=WebhookStatus)
+def get_webhook(current_user: User = Depends(require_premium)):
+    """Whether notifications are on, and which service. Never the URL — a
+    webhook URL is a bearer token for posting into someone's channel."""
+    return WebhookStatus(
+        configured=bool(current_user.webhook_url), service=_webhook_service(current_user.webhook_url)
+    )
+
+
+@app.post("/api/auth/webhook", response_model=WebhookStatus)
+def set_webhook(
+    payload: WebhookRequest,
+    current_user: User = Depends(require_premium),
+    db: Session = Depends(get_db),
+):
+    """Save or clear this account's notification webhook.
+
+    The URL is validated against a host allowlist before it is stored, not
+    only before it is used: an unvalidated URL sitting in the database is
+    one refactor away from becoming a request the server makes.
+    """
+    url = payload.webhook_url.strip()
+    if not url:
+        current_user.webhook_url = None
+        db.commit()
+        return WebhookStatus(configured=False)
+
+    problem = webhook_url_error(url)
+    if problem:
+        raise HTTPException(status_code=422, detail=problem)
+
+    current_user.webhook_url = url
+    db.commit()
+    return WebhookStatus(configured=True, service=_webhook_service(url))
+
+
+@app.post("/api/auth/webhook/test", status_code=204)
+def test_webhook(current_user: User = Depends(require_premium)):
+    """Send a message now, so a wrong URL is found here rather than
+    discovered as silence on a Sunday morning."""
+    if not current_user.webhook_url:
+        raise HTTPException(status_code=400, detail="No webhook saved yet.")
+    if not send_webhook(
+        current_user.webhook_url,
+        "**Backup Armchair Quarterback** — notifications are working. "
+        "You'll get a message here when a starter is out or on bye, and when your league changes.",
+    ):
+        raise HTTPException(
+            status_code=502,
+            detail="That webhook didn't accept the message. Check the URL is still valid in Discord or Slack.",
+        )
 
 
 @app.post("/api/auth/change-password", status_code=204)
@@ -682,6 +746,33 @@ def matchup_preview(
     league = _owned_league_or_404(db, league_id, current_user)
     my_team_id = _require_my_team(league)
     return get_matchup_preview(db, league.id, my_team_id)
+
+
+@app.get("/api/league/{league_id}/matchup-live")
+def matchup_live(
+    league_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_premium)
+):
+    """Live scores for this week's matchup, read from ESPN on every call.
+
+    Deliberately separate from /matchup-preview: that one is served from
+    the database and is fast, this one goes out to ESPN twice and is not.
+    Keeping them apart lets the tab render immediately and fill in the live
+    numbers when they arrive. Premium.
+    """
+    league = _owned_league_or_404(db, league_id, current_user)
+    my_team_id = _require_my_team(league)
+    return get_live_matchup(db, league, my_team_id, current_user)
+
+
+@app.get("/api/league/{league_id}/playoff-odds")
+def playoff_odds(
+    league_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_premium)
+):
+    """Rest-of-season simulation: playoff odds and remaining-schedule
+    strength for every team. Premium."""
+    league = _owned_league_or_404(db, league_id, current_user)
+    my_team_id = _require_my_team(league)
+    return get_playoff_odds(db, league.id, my_team_id)
 
 
 @app.get("/api/league/{league_id}/activity")

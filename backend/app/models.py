@@ -49,6 +49,10 @@ class User(Base):
     # are set.
     espn_s2: Mapped[str | None] = mapped_column(String, nullable=True)
     espn_swid: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Discord/Slack incoming webhook this account wants notifications on.
+    # Validated against a host allowlist before it is ever stored or used —
+    # see app/notifications.py, which explains why that matters.
+    webhook_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     leagues: Mapped[list["League"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
@@ -106,6 +110,10 @@ class League(Base):
     # a transaction processes, and the names come from this league's own
     # history, which a later sync can wipe.
     activity: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Fingerprints of the last notification of each kind sent for this
+    # league, so a standing problem is announced once rather than every
+    # time the scheduler wakes up. {"alerts": "<sha256>", "changes": ...}.
+    notified: Mapped[dict] = mapped_column(JSON, default=dict)
     uses_faab: Mapped[bool] = mapped_column(Boolean, default=False)
     acquisition_budget: Mapped[int] = mapped_column(Integer, default=0)
     # FantasyPros expert consensus rankings: top 10 overall + top 10 per

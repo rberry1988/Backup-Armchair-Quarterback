@@ -246,6 +246,12 @@ export interface PendingClaimsResponse {
   error: string | null;
 }
 
+export interface WebhookStatus {
+  configured: boolean;
+  /** "Discord" or "Slack" — never the URL, which is a bearer token. */
+  service: string | null;
+}
+
 export interface EspnCredentialsStatus {
   connected: boolean;
 }
@@ -341,6 +347,68 @@ export interface ActivityResponse {
   uses_faab: boolean;
   acquisition_budget: number;
 }
+
+export interface LivePlayer {
+  name: string;
+  slot: string;
+  position: string;
+  points: number;
+  projected_points: number | null;
+  /** ESPN's own: "pre" (not kicked off), "in" (playing), "post" (final). */
+  state: "pre" | "in" | "post";
+  detail: string;
+}
+
+export interface LiveSide {
+  name: string;
+  players: LivePlayer[];
+  banked: number;
+  remaining_projection: number;
+  estimate: number;
+  yet_to_play: number;
+  in_progress: number;
+}
+
+export type LiveMatchupResponse =
+  | { available: false; reason: string; detail?: string }
+  | {
+      available: true;
+      week: number;
+      me: LiveSide;
+      opponent: LiveSide;
+      margin: number;
+      win_probability: number;
+      /** True while any game is still running — what tells the UI to poll. */
+      in_progress: boolean;
+      remaining_share: number;
+    };
+
+export interface PlayoffOddsRow {
+  team_id: number;
+  team: string;
+  record: string;
+  points_per_game: number;
+  playoff_odds: number;
+  projected_wins: number;
+  remaining_opponent_ppg: number | null;
+  /** Positive = a harder remaining schedule than the league average. */
+  schedule_difficulty: number | null;
+  is_me: boolean;
+}
+
+export type PlayoffOddsResponse =
+  | { available: false; reason: string }
+  | {
+      available: true;
+      week: number;
+      playoff_teams: number;
+      weeks_remaining: number;
+      simulations: number;
+      league_average_ppg: number;
+      standings: PlayoffOddsRow[];
+      me: PlayoffOddsRow | null;
+      games_played: number;
+    };
 
 export interface TradeResponse {
   team: string;
