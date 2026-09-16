@@ -1,4 +1,5 @@
 import type {
+  ActivityResponse,
   AdminUser,
   AlertsResponse,
   BenchPointsResponse,
@@ -10,6 +11,7 @@ import type {
   HandcuffsResponse,
   ScheduleOutlookResponse,
   LeagueSummary,
+  MatchupPreviewResponse,
   PendingClaimsResponse,
   PlannedMove,
   RosterResponse,
@@ -147,6 +149,9 @@ export const api = {
   getRoster: (leagueId: number) => request<RosterResponse>(`/api/league/${leagueId}/roster`),
   getStartSit: (leagueId: number) => request<StartSitResponse>(`/api/league/${leagueId}/start-sit`),
   getWaivers: (leagueId: number) => request<WaiverResponse>(`/api/league/${leagueId}/waivers`),
+  getMatchupPreview: (leagueId: number) =>
+    request<MatchupPreviewResponse>(`/api/league/${leagueId}/matchup-preview`),
+  getActivity: (leagueId: number) => request<ActivityResponse>(`/api/league/${leagueId}/activity`),
   getTrades: (leagueId: number) => request<TradeResponse>(`/api/league/${leagueId}/trades`),
   getTeamsWithRosters: (leagueId: number) =>
     request<TeamWithRoster[]>(`/api/league/${leagueId}/teams-with-rosters`),

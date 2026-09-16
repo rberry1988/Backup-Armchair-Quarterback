@@ -181,11 +181,31 @@ export interface WaiverAdd {
   fantasycalc: FantasyCalcValue | null;
 }
 
+/** Real FAAB balances, or real waiver order — premium only, and null when
+ * the league was synced before these were captured. */
+export type BudgetContext =
+  | {
+      type: "faab";
+      budget: number;
+      my_remaining: number | null;
+      rivals: { team: string; remaining: number }[];
+      top_rival_remaining: number | null;
+    }
+  | {
+      type: "priority";
+      my_rank: number | null;
+      teams_ranked: number;
+      order: { team: string; rank: number }[];
+    };
+
 export interface WaiverSuggestion {
   add: WaiverAdd;
   drop_candidate: { espn_player_id: number; name: string; projected_points: number | null } | null;
   point_upgrade: number;
   suggested_faab_pct: number;
+  /** The percentage above turned into this league's real money, capped at
+   * what's actually left to spend. Null without a FAAB budget. */
+  suggested_bid: number | null;
 }
 
 export interface RestOfSeasonSuggestion {
@@ -247,6 +267,79 @@ export interface WaiverResponse {
   this_week: WaiverGroup<WaiverSuggestion>[];
   rest_of_season: WaiverGroup<RestOfSeasonSuggestion>[];
   fantasycalc_available: boolean;
+  budget: BudgetContext | null;
+}
+
+export interface MatchupLineupRow {
+  slot: string;
+  slot_id: number;
+  name: string;
+  position: string;
+  projected_points: number | null;
+  injury_status: string;
+  matchup: MatchupContext | null;
+}
+
+export interface MatchupSide {
+  team_id: number;
+  name: string;
+  record: string;
+  projected: number;
+  lineup: MatchupLineupRow[];
+}
+
+export interface MatchupPreviewResponse {
+  week: number | null;
+  me: MatchupSide;
+  /** Null on a bye, or when the league was synced before the head-to-head
+   * schedule was captured — `schedule_available` tells those apart. */
+  opponent: MatchupSide | null;
+  schedule_available: boolean;
+  margin?: number;
+  win_probability?: number;
+  biggest_swing?: {
+    slot: string;
+    out: string;
+    in: string;
+    gain: number;
+    win_probability_after: number;
+  } | null;
+  stdev_assumed?: number;
+}
+
+export interface ActivityPlayer {
+  espn_player_id: number;
+  name: string;
+}
+
+export interface ActivityTransaction {
+  id: string;
+  type: string;
+  label: string;
+  team_id: number | null;
+  team: string;
+  bid_amount: number | null;
+  scoring_period_id: number | null;
+  executed_at: string | null;
+  adds: ActivityPlayer[];
+  drops: ActivityPlayer[];
+}
+
+export interface ManagerSpending {
+  team_id: number;
+  team: string;
+  spent: number;
+  moves: number;
+  winning_claims: number;
+  biggest_bid: number;
+  average_bid: number;
+}
+
+export interface ActivityResponse {
+  transactions: ActivityTransaction[];
+  spending: ManagerSpending[];
+  uses_faab: boolean;
+  acquisition_budget: number;
 }
 
 export interface TradeResponse {

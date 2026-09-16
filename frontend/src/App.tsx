@@ -5,6 +5,8 @@ import { SettingsTab } from "./components/SettingsTab";
 import { RosterTab } from "./components/RosterTab";
 import { StartSitTab } from "./components/StartSitTab";
 import { WaiversTab } from "./components/WaiversTab";
+import { MatchupTab } from "./components/MatchupTab";
+import { ActivityTab } from "./components/ActivityTab";
 import { TradeTargetsTab } from "./components/TradeTargetsTab";
 import { AlertsTab } from "./components/AlertsTab";
 import { ScheduleTab } from "./components/ScheduleTab";
@@ -22,6 +24,8 @@ type Tab =
   | "waivers"
   | "schedule"
   | "trade-targets"
+  | "matchup"
+  | "activity"
   | "extra"
   | "admin";
 
@@ -33,9 +37,11 @@ const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "alerts", label: "Alerts" },
   { id: "roster", label: "Roster" },
   { id: "start-sit", label: "Start / Sit" },
+  { id: "matchup", label: "Matchup" },
   { id: "waivers", label: "Waivers" },
   { id: "schedule", label: "Schedule" },
   { id: "trade-targets", label: "Trades" },
+  { id: "activity", label: "Activity" },
   { id: "extra", label: "Extra" },
 ];
 
@@ -123,7 +129,10 @@ function App() {
   }
 
   const canViewTeamTabs = league?.my_team_id != null;
-  const visibleBaseTabs = BASE_TABS.filter((t) => t.id !== "extra" || user.is_premium);
+  // Matchup and Extra are premium; the rest are for everyone. Their
+  // endpoints refuse basic accounts too, so this is presentation only.
+  const PREMIUM_TABS: Tab[] = ["matchup", "activity", "extra"];
+  const visibleBaseTabs = BASE_TABS.filter((t) => !PREMIUM_TABS.includes(t.id) || user.is_premium);
   const tabs = user.is_admin ? [...visibleBaseTabs, { id: "admin" as const, label: "Admin" }] : visibleBaseTabs;
 
   return (
@@ -195,6 +204,8 @@ function App() {
         )}
         {tab === "alerts" && league && <AlertsTab leagueId={league.id} />}
         {tab === "schedule" && league && <ScheduleTab leagueId={league.id} />}
+        {tab === "matchup" && league && user.is_premium && <MatchupTab leagueId={league.id} />}
+        {tab === "activity" && league && user.is_premium && <ActivityTab leagueId={league.id} />}
         {tab === "extra" && league && user.is_premium && <ExtraTab leagueId={league.id} />}
         {tab === "admin" && user.is_admin && <AdminTab currentUserId={user.id} />}
       </main>

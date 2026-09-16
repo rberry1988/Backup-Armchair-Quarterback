@@ -57,6 +57,21 @@ teams, and scoring rules) and gives you three things every week:
 - **Bench Points** — every past week's real starting lineup scored against
   the best lineup that same roster could have fielded, with the specific
   swaps you missed and a season running total.
+- **Real FAAB budgets** (premium) — the Waivers tab reads every team's
+  actual acquisition spend from ESPN, so a bid suggestion is real money
+  against your real remaining balance ("bid $12, you have $43 left, and
+  only one rival can outbid you") rather than a percentage of an imagined
+  budget. Leagues on waiver priority get their position in the queue
+  instead.
+- **Matchup** (premium) — this week's head-to-head against your actual
+  opponent: both projected lineups side by side, the projected margin, a
+  win probability, and the single lineup change that most moves it. The
+  probability assumes a typical weekly scoring swing and says so; the
+  margin is the number to trust.
+- **Activity** (premium) — the league's transaction log: who claimed whom,
+  what it cost, and a per-manager spending profile. Remaining budget says
+  what a rival *can* spend; what they've actually paid for past claims is
+  the better guide to whether they'll outbid you.
 - **Pending Moves** (premium, needs a connected ESPN account) — on the
   Waivers tab, the waiver claims,
   free-agent adds and trade offers you have genuinely submitted in ESPN and

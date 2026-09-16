@@ -234,8 +234,11 @@ class ESPNClient:
         return resp.json()
 
     def get_league(self) -> dict:
-        """League settings, scoring rules, teams, and rosters in one call."""
-        return self._get({"view": ["mSettings", "mTeam", "mRoster", "mStatus"]})
+        """League settings, scoring rules, teams, rosters and the season's
+        head-to-head schedule in one call. mMatchup rides along for free —
+        it's who plays whom each week, with no per-player detail, which is
+        all the matchup preview needs."""
+        return self._get({"view": ["mSettings", "mTeam", "mRoster", "mStatus", "mMatchup"]})
 
     def get_boxscore(self, scoring_period_id: int) -> dict:
         """One past week's matchups including each team's lineup as it stood
@@ -292,3 +295,12 @@ class ESPNClient:
             extra_headers={"x-fantasy-filter": json.dumps(filter_payload)},
         )
         return data.get("players", [])
+
+    def get_transactions(self) -> dict:
+        """The league's completed transaction log — every add, drop, waiver
+        claim and trade, with the FAAB paid where there was one.
+
+        Public for a public league; a private one needs the requesting
+        user's own cookies, same as everything else here.
+        """
+        return self._get({"view": ["mTransactions2", "mTeam"]})

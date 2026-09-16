@@ -652,3 +652,108 @@ button:disabled {
   max-width: 24rem;
   line-height: 1.45;
 }
+
+/* Waivers: real FAAB balances / waiver order across the league. */
+.budget-panel {
+  border: 1px solid #2a2d34;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: #14161c;
+}
+
+.budget-panel h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  color: #9aa0a6;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.budget-bars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.budget-chip {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  background: #202127;
+  border: 1px solid #2a2d34;
+  color: #c4c7c5;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* A rival who can outbid you is the only one that changes your decision. */
+.budget-threat {
+  background: #3d2a2a;
+  border-color: #5c2b29;
+  color: #f28b82;
+}
+
+/* Weekly matchup preview: two lineups side by side, verdict on top. */
+.matchup-verdict {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+  flex-wrap: wrap;
+}
+
+.win-prob {
+  font-size: 2rem;
+  font-weight: 700;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  min-width: 5.5rem;
+  text-align: center;
+}
+
+.win-prob-good {
+  background: #1e4620;
+  color: #81c995;
+}
+
+.win-prob-bad {
+  background: #5c2b29;
+  color: #f28b82;
+}
+
+.matchup-verdict .verdict {
+  margin: 0 0 0.25rem;
+}
+
+.matchup-swing {
+  border-left: 3px solid #8ab4f8;
+  padding: 0.5rem 0.75rem;
+  background: #14161c;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.9rem;
+}
+
+.matchup-grid {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.matchup-side {
+  flex: 1 1 320px;
+  min-width: 300px;
+}
+
+.matchup-side h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.matchup-total {
+  margin: 0 0 0.5rem;
+  font-size: 1.3rem;
+  font-weight: 600;
+}

@@ -90,6 +90,24 @@ class League(Base):
     # kept as the fallback for leagues synced before this existed and for
     # positions with no meaningful yardage stat.
     defense_vs_position: Mapped[dict] = mapped_column(JSON, default=dict)
+    # How this league hands out free agents. ESPN reports whether a FAAB
+    # budget is in use and how big it is; without this the waiver tab could
+    # only suggest bids as a percentage of an imagined 100-point budget and
+    # tell you to ignore it if your league runs on waiver priority.
+    # acquisition_budget is 0 when the league doesn't use FAAB at all.
+    # Head-to-head fantasy schedule for the season, {"3": [[home_id, away_id]]}
+    # — who this league's teams play each week, which powers the weekly
+    # matchup preview. Comes free with the league sync (see
+    # ESPNClient.get_league's mMatchup view).
+    fantasy_schedule: Mapped[dict] = mapped_column(JSON, default=dict)
+    # The league's recent transaction log with names already resolved, and
+    # a per-manager FAAB spending summary — see app/league_activity.py.
+    # Stored at sync rather than fetched per request: it only changes when
+    # a transaction processes, and the names come from this league's own
+    # history, which a later sync can wipe.
+    activity: Mapped[dict] = mapped_column(JSON, default=dict)
+    uses_faab: Mapped[bool] = mapped_column(Boolean, default=False)
+    acquisition_budget: Mapped[int] = mapped_column(Integer, default=0)
     # FantasyPros expert consensus rankings: top 10 overall + top 10 per
     # position, for rest-of-season and this week (see
     # app/fantasypros_client.py). Empty unless FANTASYPROS_API_KEY is set;
@@ -166,6 +184,14 @@ class Team(Base):
     ties: Mapped[int] = mapped_column(Integer, default=0)
     points_for: Mapped[float] = mapped_column(Float, default=0.0)
     points_against: Mapped[float] = mapped_column(Float, default=0.0)
+    # FAAB spent so far this season, and position in the waiver queue.
+    # Both come out of ESPN's mTeam view, which every sync already fetches
+    # for names and records — these fields were simply being discarded.
+    # waiver_rank is null in leagues that use FAAB instead of priority (and
+    # vice versa for faab_spent), so neither is safe to assume present.
+    faab_spent: Mapped[float] = mapped_column(Float, default=0.0)
+    waiver_rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    acquisitions: Mapped[int] = mapped_column(Integer, default=0)
 
     league: Mapped[League] = relationship(back_populates="teams")
     roster_entries: Mapped[list["RosterEntry"]] = relationship(

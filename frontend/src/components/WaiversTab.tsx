@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type {
+  BudgetContext,
   PendingClaim,
   PendingClaimsResponse,
   PlannedMove,
@@ -47,11 +48,13 @@ function PlanCell({
 
 function ThisWeekTable({
   group,
+  budget,
   onPlan,
   plannedIds,
   busy,
 }: {
-  group: WaiverGroup<WaiverSuggestion>;
+  group: WaiverGroup<WaiverSuggestion> & { budget?: BudgetContext | null };
+  budget: BudgetContext | null;
   onPlan: PlanHandler;
   plannedIds: Set<number>;
   busy: boolean;
@@ -69,7 +72,7 @@ function ThisWeekTable({
               <th className="num">% Owned</th>
               <th>Drop</th>
               <th className="num">Net Gain</th>
-              <th className="num">Suggested FAAB</th>
+              <th className="num">{budget?.type === "faab" ? "Suggested Bid" : "Suggested FAAB"}</th>
               <th>Usage Trend</th>
               {onPlan && <th></th>}
             </tr>
@@ -88,7 +91,9 @@ function ThisWeekTable({
                 <td className="num">{s.add.percent_owned}%</td>
                 <td>{s.drop_candidate ? s.drop_candidate.name : "-"}</td>
                 <td className="num">+{s.point_upgrade}</td>
-                <td className="num">{s.suggested_faab_pct}%</td>
+                <td className="num">
+                  {s.suggested_bid != null ? `$${s.suggested_bid}` : `${s.suggested_faab_pct}%`}
+                </td>
                 <td>
                   <TrendTag trend={s.add.trend} />
                 </td>
@@ -166,6 +171,73 @@ function RestOfSeasonTable({
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+/** What everyone can actually still spend. The bid suggestions above are
+ * meaningless without it: the number that decides a claim is whether you
+ * can outbid the richest rival, not what a heuristic says in the abstract. */
+function BudgetPanel({ budget }: { budget: BudgetContext }) {
+  if (budget.type === "priority") {
+    return (
+      <div className="budget-panel">
+        <h4>Waiver Order</h4>
+        <p className="hint">
+          {budget.my_rank != null ? (
+            <>
+              You're <strong>#{budget.my_rank}</strong> of {budget.teams_ranked}. Anyone above you can take a player
+              first, so a claim only lands if they all pass.
+            </>
+          ) : (
+            <>This league runs on waiver priority, but ESPN didn't report your position.</>
+          )}
+        </p>
+        <div className="budget-bars">
+          {budget.order.slice(0, 6).map((t) => (
+            <span key={t.team} className="budget-chip">
+              #{t.rank} {t.team}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const mine = budget.my_remaining;
+  const top = budget.top_rival_remaining;
+  // Only the richest rival can outbid you, so that's the comparison worth
+  // leading with rather than the whole table.
+  const outgunned = mine != null && top != null && top > mine;
+  return (
+    <div className="budget-panel">
+      <h4>FAAB Budgets</h4>
+      <p className="hint">
+        {mine != null ? (
+          <>
+            You have <strong>${mine}</strong> of ${budget.budget} left.{" "}
+            {top != null &&
+              (outgunned ? (
+                <>
+                  The richest rival still has <strong>${top}</strong> &mdash; they can outbid anything you put up.
+                </>
+              ) : (
+                <>
+                  No one can outbid you: the richest rival has <strong>${top}</strong>.
+                </>
+              ))}
+          </>
+        ) : (
+          <>ESPN didn't report your remaining budget.</>
+        )}
+      </p>
+      <div className="budget-bars">
+        {budget.rivals.slice(0, 8).map((r) => (
+          <span key={r.team} className={`budget-chip${mine != null && r.remaining > mine ? " budget-threat" : ""}`}>
+            {r.team} ${r.remaining}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -296,7 +368,13 @@ export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremiu
         add_position: currentPosition(s) ?? "",
         drop_espn_player_id: s.drop_candidate?.espn_player_id ?? null,
         drop_name: s.drop_candidate?.name ?? null,
-        faab_bid: "suggested_faab_pct" in s ? s.suggested_faab_pct : null,
+        // Prefer the real dollar bid; the percentage is the fallback for a
+        // league with no FAAB budget to convert against.
+        faab_bid: "suggested_bid" in s && s.suggested_bid != null
+          ? s.suggested_bid
+          : "suggested_faab_pct" in s
+            ? s.suggested_faab_pct
+            : null,
       });
       setPlanned((prev) => [...prev, created]);
     } catch (e) {
@@ -412,6 +490,8 @@ export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremiu
         </div>
       )}
 
+      {data.budget && <BudgetPanel budget={data.budget} />}
+
       <div className="lens-toggle">
         <button className={lens === "this-week" ? "active" : ""} onClick={() => setLens("this-week")}>
           This Week
@@ -452,6 +532,7 @@ export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremiu
             <ThisWeekTable
               key={group.position}
               group={group as WaiverGroup<WaiverSuggestion>}
+              budget={data.budget}
               onPlan={onPlan}
               plannedIds={plannedIds}
               busy={planBusy}

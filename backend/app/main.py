@@ -40,6 +40,7 @@ from app.fantasycalc_client import get_trade_value
 from app.fantasypros_client import get_injury_context
 from app.models import League, PlannedMove, RosterEntry, Team, User
 from app.schedule_outlook import get_schedule_outlook
+from app.recommendations.matchup_preview import get_matchup_preview
 from app.recommendations.start_sit import get_start_sit
 from app.recommendations.trades import get_trade_suggestions, grade_trade
 from app.recommendations.waivers import get_waiver_targets
@@ -666,7 +667,38 @@ def start_sit(league_id: int, db: Session = Depends(get_db), current_user: User 
 def waivers(league_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     league = _owned_league_or_404(db, league_id, current_user)
     my_team_id = _require_my_team(league)
-    return get_waiver_targets(db, league.id, my_team_id)
+    # Real FAAB balances and waiver order are premium; the endpoint stays
+    # open so basic accounts keep their percentage-based bid hint.
+    return get_waiver_targets(
+        db, league.id, my_team_id, include_budget=has_premium_access(current_user)
+    )
+
+
+@app.get("/api/league/{league_id}/matchup-preview")
+def matchup_preview(
+    league_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_premium)
+):
+    """This week's head-to-head against your actual opponent. Premium."""
+    league = _owned_league_or_404(db, league_id, current_user)
+    my_team_id = _require_my_team(league)
+    return get_matchup_preview(db, league.id, my_team_id)
+
+
+@app.get("/api/league/{league_id}/activity")
+def league_activity(
+    league_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_premium)
+):
+    """Who's been claiming whom, what it cost, and how each manager spends.
+    Premium. Populated at sync (see app/league_activity.py), so an empty
+    feed means a re-sync is needed rather than that nothing happened."""
+    league = _owned_league_or_404(db, league_id, current_user)
+    activity = league.activity or {}
+    return {
+        "transactions": activity.get("transactions", []),
+        "spending": activity.get("spending", []),
+        "uses_faab": league.uses_faab,
+        "acquisition_budget": league.acquisition_budget,
+    }
 
 
 @app.get("/api/league/{league_id}/trades")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import logging
 
 from sqlalchemy.orm import Session
 
@@ -12,14 +13,28 @@ from app.advanced_stats import (
     index_weekly_by_gsis,
 )
 from app.app_settings import get_fantasypros_api_key
-from app.espn_client import ESPNClient, compute_bye_weeks, fetch_season_schedule, fetch_week_schedule
+from app.espn_client import (
+    ESPNClient,
+    ESPNClientError,
+    compute_bye_weeks,
+    fetch_season_schedule,
+    fetch_week_schedule,
+)
 from app.espn_constants import is_bench_slot, lineup_slot_label, position_from_id
+from app.espn_league_settings import (
+    acquisition_settings,
+    fantasy_schedule,
+    team_acquisition_state,
+)
 from app.fantasycalc_client import fetch_player_values, num_qbs_from_roster_slots, ppr_from_scoring_rules
 from app.fantasypros_client import fetch_expert_rankings_bundle, fetch_injury_context, infer_scoring_format
+from app.league_activity import build_activity, parse_transactions
 from app.models import League, Player, PlayerWeekStat, RosterEntry, Team
 from app.nflverse_client import fetch_id_crosswalk, fetch_snap_counts, fetch_weekly_player_stats
 from app.scoring import all_weekly_data, build_scoring_rules, extract_player_core
 from app.sync_diff import diff_players, snapshot_players
+
+logger = logging.getLogger(__name__)
 
 
 def _team_name(team_json: dict) -> str:
@@ -67,6 +82,10 @@ def sync_league(
     league.current_week = week
     league.scoring_rules = scoring_rules
     league.roster_slot_counts = roster_slot_counts
+    acquisition = acquisition_settings(data)
+    league.uses_faab = acquisition["uses_faab"]
+    league.acquisition_budget = acquisition["budget"]
+    league.fantasy_schedule = fantasy_schedule(data)
     previous_synced_at = league.synced_at
     league.synced_at = datetime.datetime.utcnow()
     db.flush()
@@ -123,11 +142,15 @@ def sync_league(
 
     for team_json in data.get("teams", []):
         record = team_json.get("record", {}).get("overall", {})
+        acquisition_state = team_acquisition_state(team_json)
         team = Team(
             espn_team_id=team_json.get("id"),
             league_id=league_id,
             name=_team_name(team_json),
             abbrev=team_json.get("abbrev", ""),
+            faab_spent=acquisition_state["faab_spent"],
+            waiver_rank=acquisition_state["waiver_rank"],
+            acquisitions=acquisition_state["acquisitions"],
             wins=record.get("wins", 0),
             losses=record.get("losses", 0),
             ties=record.get("ties", 0),
@@ -279,6 +302,35 @@ def sync_league(
 
         league.points_allowed_by_position = compute_points_allowed_by_position(weekly_stats_rows, through_week=week)
         league.defense_vs_position = compute_defense_vs_position(weekly_stats_rows, through_week=week)
+
+    # League transaction log -> the activity feed and per-manager FAAB
+    # spending profile (app/league_activity.py). One extra request, wrapped
+    # like every other enrichment here: a failure leaves the previous feed
+    # in place rather than clobbering it with an empty one, and never fails
+    # the sync around it.
+    try:
+        transaction_data = client.get_transactions()
+    except ESPNClientError as exc:
+        logger.info("Transaction log unavailable for league %s: %s", league_id, exc)
+        transaction_data = None
+    if transaction_data is not None:
+        try:
+            team_names = {t.espn_team_id: t.name for t in db.query(Team).filter(Team.league_id == league_id)}
+            # PlayerWeekStat accumulates across syncs, so it remembers
+            # players who have since left the pool entirely — exactly the
+            # ones a transaction log refers to.
+            player_names = {
+                espn_id: name
+                for espn_id, name in db.query(PlayerWeekStat.espn_player_id, PlayerWeekStat.full_name)
+                .filter(PlayerWeekStat.league_id == league_id)
+                .all()
+            }
+            player_names.update({p.espn_player_id: p.full_name for p in player_by_espn_id.values()})
+            new_activity = build_activity(parse_transactions(transaction_data), team_names, player_names)
+            if new_activity["transactions"]:
+                league.activity = new_activity
+        except Exception:  # noqa: BLE001 — an undocumented payload must not fail a sync
+            logger.exception("Could not build the activity feed for league %s", league_id)
 
     # FantasyPros expert consensus rankings (top 10 overall + per position,
     # rest-of-season + this week) — optional, only if a key is configured
