@@ -51,6 +51,14 @@ export function StartSitTab({ leagueId, isPremium }: { leagueId: number; isPremi
         Start / Sit &mdash; Week {data.week} ({data.swaps_recommended} suggested swap
         {data.swaps_recommended === 1 ? "" : "s"})
       </h2>
+
+      <AiAnalystPanel
+        leagueId={leagueId}
+        topic="start-sit"
+        isPremium={isPremium}
+        blurb="Hands the lineup below — projections, injury status and the defensive yardage behind each matchup rating — to your own Claude or OpenAI key and asks which swaps are actually worth making."
+      />
+
       <div className="table-scroll">
         <table>
           <thead>
@@ -91,13 +99,6 @@ export function StartSitTab({ leagueId, isPremium }: { leagueId: number; isPremi
           </tbody>
         </table>
       </div>
-
-      <AiAnalystPanel
-        leagueId={leagueId}
-        topic="start-sit"
-        isPremium={isPremium}
-        blurb="Hands the lineup above — projections, injury status and the defensive yardage behind each matchup rating — to your own Claude or OpenAI key and asks which swaps are actually worth making."
-      />
     </div>
   );
 }

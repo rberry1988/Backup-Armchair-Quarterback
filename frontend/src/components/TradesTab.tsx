@@ -21,6 +21,14 @@ export function TradesTab({ leagueId, isPremium }: { leagueId: number; isPremium
     <div className="panel">
       <h2>Trade Targets</h2>
 
+      <AiAnalystPanel
+        leagueId={leagueId}
+        topic="trades"
+        isPremium={isPremium}
+        blurb="Hands the positional strengths below to your own Claude or OpenAI key and asks which of these partners is worth messaging, what to open with, and where summed projections are misleading."
+      />
+
+
       <h3>Your needs</h3>
       {data.needs.length === 0 ? (
         <p>No glaring weak spots &mdash; your starting lineup is at or above league median everywhere.</p>
@@ -62,13 +70,6 @@ export function TradesTab({ leagueId, isPremium }: { leagueId: number; isPremium
           </div>
         ))
       )}
-
-      <AiAnalystPanel
-        leagueId={leagueId}
-        topic="trades"
-        isPremium={isPremium}
-        blurb="Hands the positional strengths above to your own Claude or OpenAI key and asks which of these partners is worth messaging, what to open with, and where summed projections are misleading."
-      />
     </div>
   );
 }

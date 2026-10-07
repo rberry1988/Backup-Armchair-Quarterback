@@ -417,6 +417,14 @@ export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremiu
     <div className="panel">
       <h2>Waiver Wire Targets</h2>
 
+      <AiAnalystPanel
+        leagueId={leagueId}
+        topic="waivers"
+        isPremium={isPremium}
+        blurb="Hands both lists below — adjusted projections, usage trends, matchup yardage and your real FAAB balance — to your own Claude or OpenAI key and asks which claims to put in and what to bid."
+      />
+
+
       {isPremium && (
         <div className="planned-moves">
           <h3>Pending Moves</h3>
@@ -549,13 +557,6 @@ export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremiu
           )
         )
       )}
-
-      <AiAnalystPanel
-        leagueId={leagueId}
-        topic="waivers"
-        isPremium={isPremium}
-        blurb="Hands both lists above — adjusted projections, usage trends, matchup yardage and your real FAAB balance — to your own Claude or OpenAI key and asks which claims to put in and what to bid."
-      />
     </div>
   );
 }
