@@ -895,3 +895,32 @@ button:disabled {
   font-size: 0.8rem;
   overflow-x: auto;
 }
+
+/* The one-click sign-in handshake: a command to copy while the app waits
+   for the helper to deliver. */
+.ai-pairing {
+  border: 1px solid #2a2d34;
+  border-left: 3px solid #4c6ef5;
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  margin: 0.5rem 0 0.75rem;
+  background: #16181e;
+}
+
+.ai-pairing .ai-signin-cmd {
+  /* The connect string is one long unbroken token; without this it widens
+     the whole panel past the viewport on a phone. */
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* The manual paste path, kept but folded away. */
+.ai-manual {
+  margin: 0.5rem 0;
+}
+
+.ai-manual summary {
+  cursor: pointer;
+  color: #8ab4f8;
+  font-size: 0.85rem;
+}

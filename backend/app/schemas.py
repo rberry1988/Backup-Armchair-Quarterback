@@ -177,6 +177,26 @@ class AiCredentialsStatus(BaseModel):
     chatgpt_account: str | None = None
 
 
+class AiPairingResponse(BaseModel):
+    """A freshly minted pairing token, shown once.
+
+    The raw token is returned exactly here and nowhere else — only its hash
+    is stored, so this response can't be re-fetched. The UI turns it into a
+    command to copy; it is never meant to be read or typed by a person.
+    """
+
+    pair_token: str
+    expires_at: datetime.datetime
+
+
+class AiPairingClaimRequest(BaseModel):
+    """What the sign-in helper posts back. Authenticated by pair_token
+    alone — the helper has no session and no password."""
+
+    pair_token: str = Field(max_length=200)
+    chatgpt_token: str = Field(max_length=20000)
+
+
 class AiAnalysisResponse(BaseModel):
     topic: str
     provider: str

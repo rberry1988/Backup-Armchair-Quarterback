@@ -93,6 +93,18 @@ class User(Base):
     # clears one when it writes the other — because "which credential is
     # this account actually using" should never be a guess.
     ai_oauth: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # A short-lived handshake so the sign-in helper can hand its result
+    # straight to this account instead of the user copying a credential
+    # between a terminal and a browser. One pending pairing per account —
+    # starting a new one should cancel the last, which a single pair of
+    # columns gets for free.
+    #
+    # Only the SHA-256 of the token is kept: it authorises writing an AI
+    # credential to this account, so it's a bearer token, and a database
+    # readable by anyone who can read it shouldn't hand them one. Cleared
+    # the moment it's used. See app/chatgpt_oauth.py's pairing section.
+    ai_pair_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    ai_pair_expires_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
 
     leagues: Mapped[list["League"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 

@@ -40,8 +40,10 @@ from __future__ import annotations
 import base64
 import binascii
 import datetime
+import hashlib
 import json
 import logging
+import secrets
 
 import httpx
 from sqlalchemy.orm import Session
@@ -238,3 +240,101 @@ def status(user) -> dict:
         if bundle.get("expires_at")
         else None,
     }
+
+
+# ---------------------------------------------------------------------------
+# Pairing: getting the helper's result into this account without a copy/paste
+# ---------------------------------------------------------------------------
+#
+# The sign-in has to happen on the user's own machine (see this module's
+# docstring), but nothing says *they* have to ferry the result. Pairing lets
+# the helper deliver it directly:
+#
+#   1. They click "Sign in with ChatGPT". The app mints a single-use pairing
+#      token and shows one command to copy.
+#   2. The helper runs locally, does the OAuth dance, and POSTs the
+#      credential back to the app, authenticating with that pairing token.
+#   3. The panel, which has been polling, flips to connected.
+#
+# The pairing token authorises writing an AI credential to one account, so it
+# is treated as the bearer credential it is: 256 bits of entropy, only its
+# hash stored, single-use, and short-lived. It is never typed by a human —
+# it rides inside a command line the UI offers as one click to copy — so
+# there's no reason to trade entropy for readability.
+
+PAIRING_TTL_MINUTES = 15
+
+# Prefix + version on the connect string for the same reason the credential
+# blob has one: so a stale or wrong paste is named as such.
+CONNECT_PREFIX = "bacq-pair-1."
+
+
+def new_pairing(user) -> str:
+    """Mint a pairing token for this account, replacing any pending one.
+
+    Returns the raw token, which the caller shows once and never stores —
+    only its hash goes to the database.
+    """
+    token = secrets.token_urlsafe(32)
+    user.ai_pair_hash = hashlib.sha256(token.encode()).hexdigest()
+    user.ai_pair_expires_at = _utcnow() + datetime.timedelta(minutes=PAIRING_TTL_MINUTES)
+    return token
+
+
+def make_connect_string(api_base: str, token: str) -> str:
+    """One opaque argument carrying both where to deliver and the token.
+
+    A single blob rather than two flags because it is copied by hand into a
+    shell: a URL and a token as separate arguments is two chances to lose
+    half of it, and one chance to mangle it on quoting.
+    """
+    payload = json.dumps({"url": api_base.rstrip("/"), "token": token}, separators=(",", ":"))
+    return CONNECT_PREFIX + base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+
+
+def parse_connect_string(value: str) -> dict:
+    """The helper's side of make_connect_string(). Raises ChatGptAuthError."""
+    text = "".join((value or "").split())
+    if not text.startswith(CONNECT_PREFIX):
+        raise ChatGptAuthError(
+            f"That doesn't look like a connect string. Copy the whole command the app showed, "
+            f"including the part starting with “{CONNECT_PREFIX}”."
+        )
+    encoded = text[len(CONNECT_PREFIX):]
+    try:
+        data = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+        url, token = data["url"], data["token"]
+    except (binascii.Error, ValueError, KeyError, UnicodeDecodeError) as exc:
+        raise ChatGptAuthError("That connect string is damaged — copy the whole command again.") from exc
+    return {"url": str(url), "token": str(token)}
+
+
+def find_pairing(db: Session, token: str):
+    """The account a pairing token belongs to, or None.
+
+    Looked up by hash, so an expired or already-used token simply matches
+    nothing — there is no path here that reveals whether a given token ever
+    existed, only whether it is usable right now.
+    """
+    from app.models import User  # local import: models imports this module's siblings
+
+    if not token:
+        return None
+    digest = hashlib.sha256(token.encode()).hexdigest()
+    user = db.query(User).filter(User.ai_pair_hash == digest).first()
+    if user is None:
+        return None
+    if not user.ai_pair_expires_at or user.ai_pair_expires_at < _utcnow():
+        # Expired tokens are cleared on sight rather than left to linger as
+        # rows that still look like live credentials.
+        user.ai_pair_hash = None
+        user.ai_pair_expires_at = None
+        db.commit()
+        return None
+    return user
+
+
+def clear_pairing(user) -> None:
+    """Single use: a pairing that has done its job can't do it again."""
+    user.ai_pair_hash = None
+    user.ai_pair_expires_at = None

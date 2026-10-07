@@ -117,20 +117,31 @@ teams, and scoring rules) and gives you three things every week:
   and third-party OAuth use has been blocked since early 2026. Claude needs
   an API key.
 
-  **Signing in with ChatGPT** takes one extra step, because OpenAI's flow
-  only redirects back to `127.0.0.1` — your own machine, not a server other
-  people reach over the network. So run the helper where your browser is:
+  **Signing in with ChatGPT** is one click plus one command. Click **Sign in
+  with ChatGPT** in Settings → Account and the app shows you a line to run:
 
   ```bash
-  python3 tools/chatgpt_signin.py
+  python3 tools/chatgpt_signin.py --connect bacq-pair-1....
   ```
 
-  It opens ChatGPT, waits for you to approve, and prints one long line.
-  Paste that into Settings → Account with the mode set to **My ChatGPT
-  Plus/Pro plan**. The server then keeps the sign-in alive on its own,
-  refreshing it as it expires. Two things worth knowing: it lapses after 30
-  days without use (re-run the helper), and you can revoke it or cap what
-  this app may spend at any time from ChatGPT → Settings → Connected apps.
+  Run that on the computer you're browsing from. It opens ChatGPT, waits for
+  you to approve, and hands the sign-in back to the app itself — the Settings
+  page updates on its own, with nothing to copy afterwards.
+
+  It can't be a plain button, because OpenAI's open-source sign-in only
+  redirects back to `127.0.0.1` — your own machine, not a server other people
+  reach over the network. (OpenAI does have a device-code flow that would
+  avoid this, but it's documented only for the Codex CLI, with no published
+  protocol for other apps.) So the sign-in happens locally and only the
+  result travels, over a single-use token the app mints for that one
+  handshake. Running the helper with no arguments still prints a credential
+  to paste by hand, which is the path to use when the app isn't reachable
+  from the machine you run it on.
+
+  The server keeps the sign-in alive from there, refreshing it as it expires.
+  Two things worth knowing: it lapses after 30 days without use (re-run the
+  helper), and you can revoke it or cap what this app may spend at any time
+  from ChatGPT → Settings → Connected apps.
 - **Pending Moves** (premium, needs a connected ESPN account) — on the
   Waivers tab, the waiver claims,
   free-agent adds and trade offers you have genuinely submitted in ESPN and

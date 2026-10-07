@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """Sign in with ChatGPT, on your own machine, and print a token to paste in.
 
-Run this where your browser is — your laptop, not the server:
+Run this where your browser is — your laptop, not the server.
 
-    python3 chatgpt_signin.py
+The app hands you the whole command. In Backup Armchair Quarterback go to
+Settings -> Account -> AI analyst, click "Sign in with ChatGPT", and copy
+what it shows:
 
-It opens ChatGPT's sign-in page, waits for you to approve, and prints one
-long line. Paste that into Backup Armchair Quarterback under
-Settings -> Account -> AI analyst, with the mode set to "ChatGPT plan".
-From then on the app's analyses come out of your ChatGPT Plus/Pro
-allowance instead of API credits.
+    python3 chatgpt_signin.py --connect bacq-pair-1....
+
+That opens ChatGPT's sign-in page, waits for you to approve, and delivers
+the result straight back to the app — nothing to copy afterwards. From then
+on the app's analyses come out of your ChatGPT Plus/Pro allowance instead of
+API credits.
+
+Run it with no arguments and it prints the credential instead, for pasting
+in by hand. Same result, one more step.
 
 Why this is a separate script and not a button in the app: OpenAI's
 sign-in flow for open-source apps only accepts a redirect back to
@@ -58,6 +64,8 @@ PLAN_USAGE_SCOPE = "chatgpt.tokens.use.direct"
 
 APP_NAME = "Backup Armchair Quarterback"
 BLOB_PREFIX = "bacq-chatgpt-1."
+# Matches chatgpt_oauth.CONNECT_PREFIX on the server.
+CONNECT_PREFIX = "bacq-pair-1."
 
 # The port OpenAI's docs use in their example. Any loopback port works as
 # long as the authorize request and the token exchange agree on it, but
@@ -117,6 +125,70 @@ def _account_email(id_token: str) -> str | None:
         return None
 
 
+def _parse_connect(value: str) -> dict:
+    """Decode the connect string the app showed. Mirrors
+    chatgpt_oauth.make_connect_string() on the server side."""
+    text = "".join((value or "").split())
+    if not text.startswith(CONNECT_PREFIX):
+        raise ValueError(
+            "That doesn't look like a connect string. Copy the whole command the app showed, "
+            f"including the part starting with \u201c{CONNECT_PREFIX}\u201d."
+        )
+    encoded = text[len(CONNECT_PREFIX):]
+    try:
+        data = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+        return {"url": str(data["url"]), "token": str(data["token"])}
+    except Exception as exc:  # noqa: BLE001 - any decode failure means the same thing
+        raise ValueError("That connect string is damaged — copy the whole command again.") from exc
+
+
+def _confirm_destination(url: str) -> bool:
+    """A ChatGPT credential is about to cross the network to this app.
+
+    Over https that's fine. Over plain http on a home network it's readable
+    by anything on the wire, which is a worse trade than it is for an
+    ordinary app login — so it's the user's call, made explicitly, rather
+    than something that quietly happens.
+    """
+    parsed = urllib.parse.urlparse(url)
+    local = parsed.hostname in ("127.0.0.1", "localhost", "::1")
+    if parsed.scheme == "https" or local:
+        return True
+    print(f"\n  WARNING: {url} is plain http, not https.")
+    print("  Your ChatGPT credential would cross the network unencrypted.")
+    try:
+        return input("  Continue anyway? [y/N] ").strip().lower() in ("y", "yes")
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+
+
+def _deliver(target: dict, blob: str) -> bool:
+    """Hand the credential to the app, authenticating with the pairing token."""
+    body = json.dumps({"pair_token": target["token"], "chatgpt_token": blob}).encode()
+    request = urllib.request.Request(
+        f"{target['url']}/api/auth/ai-pairing/claim",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=180) as response:
+            json.loads(response.read())
+        return True
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = json.loads(exc.read()).get("detail", "")
+        except Exception:  # noqa: BLE001 - a non-JSON error body is still an error
+            pass
+        print(f"\nThe app rejected the sign-in ({exc.code}): {detail or 'no reason given'}",
+              file=sys.stderr)
+    except urllib.error.URLError as exc:
+        print(f"\nCouldn't reach the app at {target['url']}: {exc.reason}", file=sys.stderr)
+    return False
+
+
 class _Callback(http.server.BaseHTTPRequestHandler):
     """Catches the one redirect back from the browser, then stops."""
 
@@ -174,10 +246,27 @@ def _post_form(url: str, fields: dict) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "--connect",
+        metavar="CONNECT_STRING",
+        help="deliver the sign-in straight to the app (the string it showed you)",
+    )
     parser.add_argument("--port", type=int, default=PREFERRED_PORT, help=f"loopback port (default {PREFERRED_PORT})")
     parser.add_argument("--no-browser", action="store_true", help="print the URL instead of opening it")
     parser.add_argument("--timeout", type=int, default=300, help="seconds to wait for sign-in (default 300)")
     args = parser.parse_args()
+
+    target = None
+    if args.connect:
+        # Parsed before the browser is opened: a mangled copy should fail in
+        # a second, not after a round trip through ChatGPT.
+        try:
+            target = _parse_connect(args.connect)
+        except ValueError as exc:
+            print(f"\n{exc}\n", file=sys.stderr)
+            return 1
+        if not _confirm_destination(target["url"]):
+            return 1
 
     try:
         server = _serve(args.port)
@@ -296,13 +385,27 @@ def main() -> int:
     email = _account_email(tokens.get("id_token", ""))
     print("\n" + "=" * 60)
     print(f"Signed in{f' as {email}' if email else ''}.")
-    print("\nCopy this ENTIRE line into Settings → Account → AI analyst:")
-    print("(it's one line, however your terminal wraps it)\n")
-    print(blob)
+
+    if target:
+        print(f"\nHanding it to the app at {target['url']} ...")
+        if not _deliver(target, blob):
+            # Not a dead end: the sign-in itself worked, only the delivery
+            # failed, so offer the manual path rather than making them do
+            # the whole thing again.
+            print("\nThe sign-in worked, so you can still finish by hand. Copy this ENTIRE line")
+            print("into Settings \u2192 Account \u2192 AI analyst, under \u201cpaste a sign-in token by hand\u201d:\n")
+            print(blob)
+            return 1
+        print("Done \u2014 the app is connected. Go back to it; it has already updated itself.")
+    else:
+        print("\nCopy this ENTIRE line into Settings \u2192 Account \u2192 AI analyst:")
+        print("(it's one line, however your terminal wraps it)\n")
+        print(blob)
+
     print("\n" + "=" * 60)
     print(
-        "This is a credential for your ChatGPT account — treat it like a password.\n"
-        "Revoke it any time from ChatGPT → Settings → Connected apps.\n"
+        "This is a credential for your ChatGPT account \u2014 treat it like a password.\n"
+        "Revoke it any time from ChatGPT \u2192 Settings \u2192 Connected apps.\n"
         "It stops working after 30 days without use; re-run this to renew."
     )
     return 0

@@ -54,6 +54,8 @@ from app.recommendations.waivers import get_waiver_targets
 from app.schemas import (
     AdminUserOut,
     AiAnalysisResponse,
+    AiPairingClaimRequest,
+    AiPairingResponse,
     AiCredentialsRequest,
     AiCredentialsStatus,
     AutoSyncRequest,
@@ -416,6 +418,89 @@ def set_ai_credentials(
     current_user.ai_model = model if model != ai_advisor.DEFAULT_MODELS[provider] else None
     db.commit()
     return _ai_credentials_status(current_user)
+
+
+# Pairing lets the sign-in helper deliver its result straight to this
+# account, so nobody has to carry a credential between a terminal and a
+# browser. See app/chatgpt_oauth.py's pairing section for the shape of it.
+@app.post("/api/auth/ai-pairing", response_model=AiPairingResponse)
+def start_ai_pairing(
+    current_user: User = Depends(require_premium),
+    db: Session = Depends(get_db),
+):
+    """Mint a single-use pairing token for this account.
+
+    Returned in the clear exactly once — only its hash is stored, so there
+    is no way to fetch it again, and starting another pairing cancels this
+    one.
+    """
+    token = chatgpt_oauth.new_pairing(current_user)
+    expires_at = current_user.ai_pair_expires_at
+    db.commit()
+    return AiPairingResponse(pair_token=token, expires_at=expires_at)
+
+
+# Deliberately not behind get_current_user: the caller is a script on
+# someone's laptop with no session and no password, and the pairing token is
+# what authorises it. That makes this the one endpoint where a bearer token
+# in the body decides which account gets written to, so it is kept narrow —
+# it can only ever set an AI credential, the token is single-use and expires
+# in minutes, and failures say nothing about whether a token existed.
+@app.post("/api/auth/ai-pairing/claim", response_model=AiCredentialsStatus)
+def claim_ai_pairing(
+    payload: AiPairingClaimRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Accept a ChatGPT sign-in from the helper and attach it to the account
+    that minted this pairing token."""
+    # Throttled on the address, not the token: the token is 256 bits, so
+    # this is about stopping someone hammering the endpoint at all rather
+    # than about guessing a specific one.
+    check_login_allowed("ai-pairing", client_ip(request))
+
+    user = chatgpt_oauth.find_pairing(db, payload.pair_token.strip())
+    if user is None:
+        record_failed_login("ai-pairing", client_ip(request))
+        # One message for expired, already-used, and never-existed. Telling
+        # them apart would turn this into an oracle for valid tokens.
+        raise HTTPException(
+            status_code=404,
+            detail="That pairing has expired or already been used. Click Sign in with ChatGPT again.",
+        )
+    # Re-checked at claim time, not just when the pairing was minted: premium
+    # could have been revoked in between, and the gate should hold now.
+    if not has_premium_access(user):
+        chatgpt_oauth.clear_pairing(user)
+        db.commit()
+        raise HTTPException(status_code=403, detail="Premium access required")
+
+    try:
+        bundle = chatgpt_oauth.parse_blob(payload.chatgpt_token)
+    except chatgpt_oauth.ChatGptAuthError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    model = ai_advisor.resolved_model(user) if user.ai_provider == ai_advisor.OPENAI else None
+    model = model or ai_advisor.DEFAULT_MODELS[ai_advisor.OPENAI]
+    try:
+        ai_advisor.verify_credentials(ai_advisor.OPENAI, bundle["access_token"], model, plan_usage=True)
+    except ai_advisor.AiRateLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except ai_advisor.AiProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ai_advisor.AiAdvisorError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    user.ai_provider = ai_advisor.OPENAI
+    user.ai_oauth = bundle
+    user.ai_api_key = None
+    user.ai_model = model if model != ai_advisor.DEFAULT_MODELS[ai_advisor.OPENAI] else None
+    # Burned on success only. A failed verification leaves the pairing live
+    # so a second attempt doesn't need a fresh click.
+    chatgpt_oauth.clear_pairing(user)
+    db.commit()
+    clear_failed_logins("ai-pairing", client_ip(request))
+    return _ai_credentials_status(user)
 
 
 @app.post("/api/auth/change-password", status_code=204)

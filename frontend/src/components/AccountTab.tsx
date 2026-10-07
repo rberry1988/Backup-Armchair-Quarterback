@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { ApiError, api } from "../api";
+import { ApiError, api, apiBaseUrl } from "../api";
 import { ESPN_BOOKMARKLET, parseEspnCookies } from "../espnCookies";
 import type { AiAuthMode, AiCredentialsStatus } from "../types";
 
@@ -53,6 +53,11 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiSaved, setAiSaved] = useState<string | null>(null);
   const [savingAi, setSavingAi] = useState(false);
+  // The one-click path: the app mints a pairing token, shows the command it
+  // belongs to, and waits for the helper to deliver the sign-in itself.
+  const [pairCommand, setPairCommand] = useState<string | null>(null);
+  const [pairExpiresAt, setPairExpiresAt] = useState<number | null>(null);
+  const [pairCopied, setPairCopied] = useState(false);
 
   // React 19 refuses to render a javascript: href, which is exactly what a
   // bookmarklet is, so the attribute is set on the DOM node directly. The
@@ -132,6 +137,70 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
     };
   }, [isPremium]);
 
+  // While a pairing is outstanding, watch for the helper to land. Polling
+  // rather than anything cleverer because the event arrives at the server
+  // from a different machine entirely — there is nothing in this browser to
+  // listen to.
+  useEffect(() => {
+    if (!pairCommand) return;
+    let stopped = false;
+    const timer = setInterval(async () => {
+      if (pairExpiresAt && Date.now() > pairExpiresAt) {
+        if (stopped) return;
+        setPairCommand(null);
+        setPairExpiresAt(null);
+        setAiError("That sign-in link expired. Click Sign in with ChatGPT again.");
+        return;
+      }
+      try {
+        const status = await api.getAiCredentials();
+        if (stopped || status.auth_mode !== "chatgpt_plan") return;
+        setAiStatus(status);
+        setPairCommand(null);
+        setPairExpiresAt(null);
+        setAiSaved(
+          `Connected${status.chatgpt_account ? ` as ${status.chatgpt_account}` : ""} — analyses will come out of your ChatGPT plan, using ${status.model}.`
+        );
+      } catch {
+        // A blip mid-poll isn't worth surfacing; the next tick retries.
+      }
+    }, 3000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [pairCommand, pairExpiresAt]);
+
+  async function handleStartPairing() {
+    setAiError(null);
+    setAiSaved(null);
+    setPairCopied(false);
+    setSavingAi(true);
+    try {
+      const pairing = await api.startAiPairing();
+      // Built here rather than server-side: behind a proxy the server can't
+      // know its own external URL, and the browser demonstrably can.
+      const connect = `bacq-pair-1.${btoa(
+        JSON.stringify({ url: apiBaseUrl().replace(/\/$/, ""), token: pairing.pair_token })
+      )
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "")}`;
+      setPairCommand(`python3 tools/chatgpt_signin.py --connect ${connect}`);
+      setPairExpiresAt(new Date(pairing.expires_at + "Z").getTime());
+    } catch (err) {
+      setAiError(err instanceof ApiError ? err.message : "Couldn't start the sign-in.");
+    } finally {
+      setSavingAi(false);
+    }
+  }
+
+  function cancelPairing() {
+    setPairCommand(null);
+    setPairExpiresAt(null);
+    setPairCopied(false);
+  }
+
   async function handleSaveAi(e: FormEvent) {
     e.preventDefault();
     setAiError(null);
@@ -162,6 +231,7 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
       setAiStatus(status);
       setAiKey("");
       setAiModel("");
+      cancelPairing();
       setAiSaved("Disconnected. The written analysis panels will stop offering themselves.");
     } catch (err) {
       setAiError(err instanceof ApiError ? err.message : "Couldn't disconnect.");
@@ -591,30 +661,77 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
 
             {aiMode === "chatgpt_plan" ? (
               <>
-                <p className="hint">
-                  Run the sign-in helper <strong>on the computer you're browsing from</strong>, not on
-                  the server &mdash; OpenAI only allows the sign-in to redirect back to{" "}
-                  <code>127.0.0.1</code>, so it has to happen on your own machine:
-                </p>
-                <pre className="ai-signin-cmd">python3 tools/chatgpt_signin.py</pre>
-                <p className="hint">
-                  It opens ChatGPT, waits for you to approve, and prints one long line. Paste that
-                  whole line below.
-                </p>
-                <label className="espn-paste-label">
-                  Sign-in token
-                  <textarea
-                    value={aiKey}
-                    onChange={(e) => setAiKey(e.target.value)}
-                    rows={3}
-                    placeholder={
-                      aiStatus?.auth_mode === "chatgpt_plan"
-                        ? "Signed in - paste a new token to replace it"
-                        : "bacq-chatgpt-1...."
-                    }
-                    autoComplete="off"
-                  />
-                </label>
+                {pairCommand ? (
+                  <div className="ai-pairing">
+                    <p className="hint">
+                      Run this <strong>on the computer you're browsing from</strong>, in a terminal
+                      in the app's folder:
+                    </p>
+                    <pre className="ai-signin-cmd">{pairCommand}</pre>
+                    <div className="form-row">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(pairCommand);
+                            setPairCopied(true);
+                          } catch {
+                            // Clipboard access can be refused outright (no
+                            // https, or a browser that just says no). The
+                            // command is on screen either way, so this is a
+                            // convenience failing, not the flow failing.
+                            setPairCopied(false);
+                          }
+                        }}
+                      >
+                        {pairCopied ? "Copied" : "Copy command"}
+                      </button>
+                      <button type="button" onClick={cancelPairing}>
+                        Cancel
+                      </button>
+                      <span className="hint">Waiting for you to approve it in ChatGPT&hellip;</span>
+                    </div>
+                    <p className="hint">
+                      It opens ChatGPT, waits for you to approve, and hands the sign-in back here on
+                      its own &mdash; nothing to copy afterwards. This page will update itself.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="hint">
+                      One click here, then one command on your own machine. OpenAI only lets the
+                      sign-in redirect back to <code>127.0.0.1</code>, so it can't happen on the
+                      server &mdash; but the helper can deliver the result here for you.
+                    </p>
+            <div className="form-row">
+                      <button type="button" onClick={handleStartPairing} disabled={savingAi}>
+                        {savingAi ? "Starting\u2026" : "Sign in with ChatGPT"}
+                      </button>
+                    </div>
+                    <details className="ai-manual">
+                      <summary>Or paste a sign-in token by hand</summary>
+                      <p className="hint">
+                        Run <code>python3 tools/chatgpt_signin.py</code> with no arguments and paste
+                        the line it prints. Same result, one more step &mdash; useful if this app
+                        isn't reachable from the machine you run the helper on.
+                      </p>
+                      <label className="espn-paste-label">
+                        Sign-in token
+                        <textarea
+                          value={aiKey}
+                          onChange={(e) => setAiKey(e.target.value)}
+                          rows={3}
+                          placeholder={
+                            aiStatus?.auth_mode === "chatgpt_plan"
+                              ? "Signed in - paste a new token to replace it"
+                              : "bacq-chatgpt-1...."
+                          }
+                          autoComplete="off"
+                        />
+                      </label>
+                    </details>
+                  </>
+                )}
               </>
             ) : (
               <label className="espn-paste-label">
@@ -636,6 +753,7 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
                 />
               </label>
             )}
+
             <label className="espn-paste-label">
               Model <span className="hint">(optional)</span>
               <input
@@ -651,7 +769,7 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
             </label>
             {aiError && <p className="error">{aiError}</p>}
             {aiSaved && <p className="success">{aiSaved}</p>}
-            <div className="form-row">
+            <div className="form-row" style={pairCommand ? { display: "none" } : undefined}>
               <button
                 type="submit"
                 disabled={

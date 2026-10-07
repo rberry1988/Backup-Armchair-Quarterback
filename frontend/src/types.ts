@@ -259,6 +259,12 @@ export interface PendingClaimsResponse {
  *  third-party use of consumer-subscription credentials. */
 export type AiAuthMode = "api_key" | "chatgpt_plan";
 
+export interface AiPairing {
+  /** Shown once and never refetchable — only its hash reaches the database. */
+  pair_token: string;
+  expires_at: string;
+}
+
 export interface AiCredentialsStatus {
   configured: boolean;
   /** "anthropic" | "openai" — null when nothing is connected. */

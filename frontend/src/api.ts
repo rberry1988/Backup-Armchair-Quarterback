@@ -4,6 +4,7 @@ import type {
   AiAnalysis,
   AiAuthMode,
   AiCredentialsStatus,
+  AiPairing,
   AiTopic,
   AlertsResponse,
   BenchPointsResponse,
@@ -44,6 +45,14 @@ export class ApiError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+/** The API's absolute origin, as the sign-in helper will have to reach it.
+ *  BASE_URL is empty in production (same-origin), so fall back to where the
+ *  page itself was served from — the server can't reliably know its own
+ *  external URL behind a proxy, but the browser already does. */
+export function apiBaseUrl(): string {
+  return BASE_URL || window.location.origin;
 }
 
 export function getToken(): string | null {
@@ -116,6 +125,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ espn_s2: espnS2, swid }),
     }),
+
+  startAiPairing: () => request<AiPairing>("/api/auth/ai-pairing", { method: "POST" }),
 
   getAiCredentials: () => request<AiCredentialsStatus>("/api/auth/ai-credentials"),
   // An empty provider disconnects. An empty credential with a provider set
