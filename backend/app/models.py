@@ -79,6 +79,20 @@ class User(Base):
     ai_provider: Mapped[str | None] = mapped_column(String, nullable=True)
     ai_api_key: Mapped[str | None] = mapped_column(String, nullable=True)
     ai_model: Mapped[str | None] = mapped_column(String, nullable=True)
+    # The other way to pay for OpenAI calls: a ChatGPT Plus/Pro plan,
+    # authorised through "Sign in with ChatGPT" instead of an API key. Holds
+    # the OAuth bundle — client_id, access_token, refresh_token, expires_at,
+    # account_email — see app/chatgpt_oauth.py.
+    #
+    # One column rather than five because these five move together: a
+    # refresh replaces the access token, the expiry *and* the refresh token
+    # (OpenAI rotates it on every use) in one write, and splitting them
+    # across columns only invites a half-applied update.
+    #
+    # Mutually exclusive with ai_api_key in practice — set_ai_credentials
+    # clears one when it writes the other — because "which credential is
+    # this account actually using" should never be a guess.
+    ai_oauth: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     leagues: Mapped[list["League"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 

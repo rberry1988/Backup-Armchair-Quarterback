@@ -86,8 +86,8 @@ teams, and scoring rules) and gives you three things every week:
   what it cost, and a per-manager spending profile. Remaining budget says
   what a rival *can* spend; what they've actually paid for past claims is
   the better guide to whether they'll outbid you.
-- **AI analyst** (premium, needs your own API key) — connect a Claude
-  (Anthropic) or OpenAI key under **Settings → Account** and the
+- **AI analyst** (premium, needs your own Claude or OpenAI account) — connect a Claude
+  (Anthropic) or OpenAI account under **Settings → Account** and the
   **Waivers**, **Trades** and **Start/Sit** tabs each get an *Ask the AI
   analyst* button. It's handed the same figures you're looking at — the
   adjusted projections, the real defensive yardage behind each matchup
@@ -96,11 +96,41 @@ teams, and scoring rules) and gives you three things every week:
   what to bid, which swaps are worth making, which trade partner is worth
   messaging. It's told to use only the numbers it's given and never to
   state a stat the app didn't supply, so it can't quietly invent one.
-  The key is yours and the calls are billed to it; there is deliberately no
-  instance-wide key, so nobody else here can spend it. Capped at 20
-  analyses an hour per account. The key is verified with one tiny real call
-  when you save it, stored on the server, and never sent back to any
-  browser — same as the ESPN cookies and the webhook URL.
+  There is deliberately no instance-wide credential, so nobody else here can
+  spend yours. Capped at 20 analyses an hour per account. Whatever you
+  connect is verified with one tiny real call when you save it, stored on
+  the server, and never sent back to any browser — same as the ESPN cookies
+  and the webhook URL.
+
+  Two ways to pay for it:
+
+  - **An API key**, from `console.anthropic.com` or `platform.openai.com`.
+    Works for both providers. Note that a **Claude Pro/Max or ChatGPT Plus
+    subscription is not API access** — those cover claude.ai and
+    chatgpt.com, and API usage is billed separately.
+  - **Your ChatGPT Plus/Pro plan** (OpenAI only), via Sign in with ChatGPT.
+    Analyses then come out of the allowance you already pay for, with no
+    API credits involved.
+
+  There is no Claude equivalent, and that isn't an oversight: Anthropic's
+  terms allow consumer-subscription credentials only in their own products,
+  and third-party OAuth use has been blocked since early 2026. Claude needs
+  an API key.
+
+  **Signing in with ChatGPT** takes one extra step, because OpenAI's flow
+  only redirects back to `127.0.0.1` — your own machine, not a server other
+  people reach over the network. So run the helper where your browser is:
+
+  ```bash
+  python3 tools/chatgpt_signin.py
+  ```
+
+  It opens ChatGPT, waits for you to approve, and prints one long line.
+  Paste that into Settings → Account with the mode set to **My ChatGPT
+  Plus/Pro plan**. The server then keeps the sign-in alive on its own,
+  refreshing it as it expires. Two things worth knowing: it lapses after 30
+  days without use (re-run the helper), and you can revoke it or cap what
+  this app may spend at any time from ChatGPT → Settings → Connected apps.
 - **Pending Moves** (premium, needs a connected ESPN account) — on the
   Waivers tab, the waiver claims,
   free-agent adds and trade offers you have genuinely submitted in ESPN and

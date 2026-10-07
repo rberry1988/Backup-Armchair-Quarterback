@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.alerts import get_roster_alerts
 from app.app_settings import fantasypros_api_key_source, set_fantasypros_api_key
 from app import ai_advisor
+from app import chatgpt_oauth
 from app.auto_sync import auto_sync_loop, clamp_interval_hours
 from app.auth import (
     PENDING_APPROVAL_DETAIL,
@@ -293,14 +294,17 @@ def test_webhook(current_user: User = Depends(require_premium)):
 
 def _ai_credentials_status(user: User) -> AiCredentialsStatus:
     provider = ai_advisor.normalize_provider(user.ai_provider)
-    if provider is None or not user.ai_api_key:
+    mode = ai_advisor.auth_mode(user)
+    if provider is None or mode is None:
         return AiCredentialsStatus(configured=False)
     return AiCredentialsStatus(
         configured=True,
         provider=provider,
         provider_label=ai_advisor.PROVIDER_LABELS[provider],
+        auth_mode=mode,
         model=ai_advisor.resolved_model(user),
         default_model=ai_advisor.DEFAULT_MODELS[provider],
+        chatgpt_account=(user.ai_oauth or {}).get("account_email"),
     )
 
 
@@ -321,11 +325,17 @@ def set_ai_credentials(
     current_user: User = Depends(require_premium),
     db: Session = Depends(get_db),
 ):
-    """Save, re-point or clear this account's own AI provider credential.
+    """Save, re-point or clear this account's own AI credential.
 
-    The key is verified with one real (tiny) call before it is stored, so a
-    typo is caught here rather than discovered as a failing button days
-    later. Nothing is written if that call fails.
+    Two kinds of credential land here. An API key bills the provider account
+    it belongs to. A ChatGPT sign-in (OpenAI only) spends the user's own
+    Plus/Pro allowance instead — pasted in from tools/chatgpt_signin.py,
+    because OpenAI's flow only redirects to 127.0.0.1 and this server isn't
+    on the user's machine. See app/chatgpt_oauth.py.
+
+    Either way the credential is verified with one real call before it is
+    stored, so a typo is caught here rather than discovered as a failing
+    button days later. Nothing is written if that call fails.
     """
     provider = ai_advisor.normalize_provider(payload.provider)
     if provider is None:
@@ -337,23 +347,52 @@ def set_ai_credentials(
         current_user.ai_provider = None
         current_user.ai_api_key = None
         current_user.ai_model = None
+        current_user.ai_oauth = None
         db.commit()
         return AiCredentialsStatus(configured=False)
 
-    api_key = payload.api_key.strip()
-    if not api_key:
-        # Changing only the model shouldn't require re-pasting a key the
-        # user can't read back. Only valid when a key for this same provider
-        # is already on file.
-        if ai_advisor.normalize_provider(current_user.ai_provider) == provider and current_user.ai_api_key:
-            api_key = current_user.ai_api_key
-        else:
-            raise HTTPException(status_code=422, detail="Paste an API key for that provider.")
+    plan_usage = payload.auth_mode == ai_advisor.CHATGPT_PLAN
+    if plan_usage and provider != ai_advisor.OPENAI:
+        # Not an oversight: Anthropic prohibits third-party apps from using
+        # Claude Pro/Max subscription credentials, so there is no equivalent
+        # to offer here and pretending otherwise would get accounts banned.
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Claude subscriptions can't be used from third-party apps \u2014 Anthropic's "
+                "terms only allow that in their own products. Use an API key instead."
+            ),
+        )
 
     model = payload.model.strip() or ai_advisor.DEFAULT_MODELS[provider]
 
+    if plan_usage:
+        pasted = payload.chatgpt_token.strip()
+        if pasted:
+            try:
+                bundle = chatgpt_oauth.parse_blob(pasted)
+            except chatgpt_oauth.ChatGptAuthError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+        elif (current_user.ai_oauth or {}).get("access_token"):
+            # Same courtesy as the API-key path: changing only the model
+            # shouldn't mean re-running the helper.
+            bundle = dict(current_user.ai_oauth)
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail="Run the sign-in helper and paste the line it prints.",
+            )
+        credential = bundle["access_token"]
+    else:
+        credential = payload.api_key.strip()
+        if not credential:
+            if ai_advisor.normalize_provider(current_user.ai_provider) == provider and current_user.ai_api_key:
+                credential = current_user.ai_api_key
+            else:
+                raise HTTPException(status_code=422, detail="Paste an API key for that provider.")
+
     try:
-        ai_advisor.verify_credentials(provider, api_key, model)
+        ai_advisor.verify_credentials(provider, credential, model, plan_usage=plan_usage)
     except ai_advisor.AiRateLimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ai_advisor.AiProviderError as exc:
@@ -362,7 +401,15 @@ def set_ai_credentials(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     current_user.ai_provider = provider
-    current_user.ai_api_key = api_key
+    # The two credential kinds are mutually exclusive, so writing one clears
+    # the other. Leaving a stale key behind would make "which one is this
+    # account actually using" a question with two plausible answers.
+    if plan_usage:
+        current_user.ai_oauth = bundle
+        current_user.ai_api_key = None
+    else:
+        current_user.ai_api_key = credential
+        current_user.ai_oauth = None
     # Stored only when it differs from the default, so an account tracks the
     # default as it moves rather than being pinned to whatever it was on the
     # day they set it up.
@@ -962,7 +1009,7 @@ def ai_analysis(
         raise HTTPException(status_code=404, detail="No analysis available for that tab.")
 
     try:
-        return AiAnalysisResponse(**ai_advisor.generate_analysis(current_user, topic, data))
+        return AiAnalysisResponse(**ai_advisor.generate_analysis(db, current_user, topic, data))
     except ai_advisor.AiRateLimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ai_advisor.AiProviderError as exc:

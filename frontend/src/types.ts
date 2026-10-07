@@ -253,15 +253,24 @@ export interface PendingClaimsResponse {
   error: string | null;
 }
 
+/** How the account pays. "api_key" bills the provider account the key
+ *  belongs to; "chatgpt_plan" spends a ChatGPT Plus/Pro allowance via Sign in
+ *  with ChatGPT. There is no Claude equivalent — Anthropic prohibits
+ *  third-party use of consumer-subscription credentials. */
+export type AiAuthMode = "api_key" | "chatgpt_plan";
+
 export interface AiCredentialsStatus {
   configured: boolean;
   /** "anthropic" | "openai" — null when nothing is connected. */
   provider: string | null;
   provider_label: string | null;
+  auth_mode: AiAuthMode | null;
   /** The model that will actually be used (saved override, or the default). */
   model: string | null;
   /** This provider's default, for the model box's placeholder. */
   default_model: string | null;
+  /** ChatGPT plan mode only: which ChatGPT account is connected. */
+  chatgpt_account: string | null;
 }
 
 /** Which tabs can ask for written analysis. Matches the topics the backend's

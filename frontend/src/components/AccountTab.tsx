@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { ApiError, api } from "../api";
 import { ESPN_BOOKMARKLET, parseEspnCookies } from "../espnCookies";
-import type { AiCredentialsStatus } from "../types";
+import type { AiAuthMode, AiCredentialsStatus } from "../types";
 
 interface Props {
   email: string;
@@ -45,6 +45,9 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
   // ever reports whether one is saved, for which provider and model.
   const [aiStatus, setAiStatus] = useState<AiCredentialsStatus | null>(null);
   const [aiProvider, setAiProvider] = useState("anthropic");
+  const [aiMode, setAiMode] = useState<AiAuthMode>("api_key");
+  // One box for both kinds of credential: only one is ever on screen, and
+  // keeping them separate would just let a stale value sit in the hidden one.
   const [aiKey, setAiKey] = useState("");
   const [aiModel, setAiModel] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
@@ -115,8 +118,10 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
         if (ignore) return;
         setAiStatus(status);
         // Start the form on whatever is already connected, so "change the
-        // model" doesn't silently mean "switch provider".
+        // model" doesn't silently mean "switch provider" or "switch how
+        // you're paying".
         if (status.provider) setAiProvider(status.provider);
+        if (status.auth_mode) setAiMode(status.auth_mode);
       })
       .catch(() => {
         // Non-critical: the panel still works, it just starts out assuming
@@ -133,10 +138,14 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
     setAiSaved(null);
     setSavingAi(true);
     try {
-      const status = await api.setAiCredentials(aiProvider, aiKey.trim(), aiModel.trim());
+      const status = await api.setAiCredentials(aiProvider, aiMode, aiKey.trim(), aiModel.trim());
       setAiStatus(status);
       setAiKey("");
-      setAiSaved(`Connected to ${status.provider_label} using ${status.model}.`);
+      setAiSaved(
+        status.auth_mode === "chatgpt_plan"
+          ? `Connected${status.chatgpt_account ? ` as ${status.chatgpt_account}` : ""} — analyses will come out of your ChatGPT plan, using ${status.model}.`
+          : `Connected to ${status.provider_label} using ${status.model}.`
+      );
     } catch (err) {
       setAiError(err instanceof ApiError ? err.message : "Couldn't save that key.");
     } finally {
@@ -149,7 +158,7 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
     setAiSaved(null);
     setSavingAi(true);
     try {
-      const status = await api.setAiCredentials("", "", "");
+      const status = await api.setAiCredentials("", "api_key", "", "");
       setAiStatus(status);
       setAiKey("");
       setAiModel("");
@@ -512,44 +521,121 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
           <h3>
             AI analyst{" "}
             <span className={aiStatus?.configured ? "success" : "hint"} style={{ fontSize: "0.8rem" }}>
-              {aiStatus?.configured ? `On \u2014 ${aiStatus.provider_label}` : "Off"}
+              {aiStatus?.configured
+                ? aiStatus.auth_mode === "chatgpt_plan"
+                  ? `On \u2014 ChatGPT plan${aiStatus.chatgpt_account ? ` (${aiStatus.chatgpt_account})` : ""}`
+                  : `On \u2014 ${aiStatus.provider_label}`
+                : "Off"}
             </span>
           </h3>
           <p className="hint">
-            Connect your own Claude or OpenAI API key and the <strong>Waivers</strong>, <strong>Trades</strong> and{" "}
-            <strong>Start/Sit</strong> tabs each get an <em>Ask the AI analyst</em> button. It's handed the same
-            numbers you're looking at &mdash; projections, the defensive yardage behind each matchup rating, usage
-            trends, FAAB balances &mdash; and asked to weigh them up and tell you what it would do. It's told not to
-            state any figure the app didn't give it, so it can't quietly invent stats.
+            Connect your own Claude or OpenAI account and the <strong>Waivers</strong>,{" "}
+            <strong>Trades</strong> and <strong>Start/Sit</strong> tabs each get an{" "}
+            <em>Ask the AI analyst</em> button. It's handed the same numbers you're looking at
+            &mdash; projections, the defensive yardage behind each matchup rating, usage trends,
+            FAAB balances &mdash; and asked to weigh them up and tell you what it would do. It's
+            told not to state any figure the app didn't give it, so it can't quietly invent stats.
           </p>
           <p className="hint">
-            The key is yours and the calls are billed to it, so nobody else on this instance can spend it. There's a
-            cap of 20 analyses an hour per account.
+            Pay with an API key, or &mdash; for OpenAI &mdash; out of a ChatGPT Plus/Pro plan you
+            already have. Either way it's your own account paying, so nobody else on this instance
+            can spend it. There's a cap of 20 analyses an hour per account.
           </p>
           <form onSubmit={handleSaveAi} style={{ maxWidth: "460px" }}>
             <label className="espn-paste-label">
               Provider
-              <select value={aiProvider} onChange={(e) => setAiProvider(e.target.value)}>
+              <select
+                value={aiProvider}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setAiProvider(next);
+                  // Anthropic has no plan option at all, so leaving the mode
+                  // on "ChatGPT plan" would offer something that can't work.
+                  if (next !== "openai") setAiMode("api_key");
+                  setAiKey("");
+                  setAiError(null);
+                  setAiSaved(null);
+                }}
+              >
                 <option value="anthropic">Claude (Anthropic)</option>
                 <option value="openai">OpenAI</option>
               </select>
             </label>
             <label className="espn-paste-label">
-              API key
-              <input
-                type="password"
-                value={aiKey}
-                onChange={(e) => setAiKey(e.target.value)}
-                placeholder={
-                  aiStatus?.configured && aiStatus.provider === aiProvider
-                    ? "Saved - paste a new key to replace it"
-                    : aiProvider === "anthropic"
-                      ? "sk-ant-..."
-                      : "sk-..."
-                }
-                autoComplete="off"
-              />
+              How you're paying
+              <select
+                value={aiMode}
+                onChange={(e) => {
+                  setAiMode(e.target.value as AiAuthMode);
+                  // The two kinds of credential aren't interchangeable, so
+                  // whatever is half-typed in the box doesn't carry over.
+                  setAiKey("");
+                  setAiError(null);
+                  setAiSaved(null);
+                }}
+              >
+                <option value="api_key">API key (pay per analysis)</option>
+                <option value="chatgpt_plan" disabled={aiProvider !== "openai"}>
+                  My ChatGPT Plus/Pro plan
+                </option>
+              </select>
             </label>
+
+            {aiProvider === "anthropic" && (
+              <p className="hint">
+                A Claude Pro or Max subscription can't be used here &mdash; Anthropic's terms allow
+                those credentials only in their own apps, and using them elsewhere risks the
+                account. Claude needs an API key.
+              </p>
+            )}
+
+            {aiMode === "chatgpt_plan" ? (
+              <>
+                <p className="hint">
+                  Run the sign-in helper <strong>on the computer you're browsing from</strong>, not on
+                  the server &mdash; OpenAI only allows the sign-in to redirect back to{" "}
+                  <code>127.0.0.1</code>, so it has to happen on your own machine:
+                </p>
+                <pre className="ai-signin-cmd">python3 tools/chatgpt_signin.py</pre>
+                <p className="hint">
+                  It opens ChatGPT, waits for you to approve, and prints one long line. Paste that
+                  whole line below.
+                </p>
+                <label className="espn-paste-label">
+                  Sign-in token
+                  <textarea
+                    value={aiKey}
+                    onChange={(e) => setAiKey(e.target.value)}
+                    rows={3}
+                    placeholder={
+                      aiStatus?.auth_mode === "chatgpt_plan"
+                        ? "Signed in - paste a new token to replace it"
+                        : "bacq-chatgpt-1...."
+                    }
+                    autoComplete="off"
+                  />
+                </label>
+              </>
+            ) : (
+              <label className="espn-paste-label">
+                API key
+                <input
+                  type="password"
+                  value={aiKey}
+                  onChange={(e) => setAiKey(e.target.value)}
+                  placeholder={
+                    aiStatus?.configured &&
+                    aiStatus.provider === aiProvider &&
+                    aiStatus.auth_mode === "api_key"
+                      ? "Saved - paste a new key to replace it"
+                      : aiProvider === "anthropic"
+                        ? "sk-ant-..."
+                        : "sk-..."
+                  }
+                  autoComplete="off"
+                />
+              </label>
+            )}
             <label className="espn-paste-label">
               Model <span className="hint">(optional)</span>
               <input
@@ -570,15 +656,23 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
                 type="submit"
                 disabled={
                   savingAi ||
-                  // A key is required to connect, or to switch provider. Once
-                  // one is saved for this provider, a model change alone is a
-                  // valid save — the server reuses the stored key.
-                  (!aiKey.trim() && !(aiStatus?.configured && aiStatus.provider === aiProvider))
+                  // A credential is required to connect, or to change
+                  // provider or mode. Once one is saved for this exact
+                  // provider and mode, a model change alone is a valid save —
+                  // the server reuses what it already has.
+                  (!aiKey.trim() &&
+                    !(
+                      aiStatus?.configured &&
+                      aiStatus.provider === aiProvider &&
+                      aiStatus.auth_mode === aiMode
+                    ))
                 }
               >
                 {savingAi
-                  ? "Checking the key..."
-                  : aiStatus?.configured && aiStatus.provider === aiProvider
+                  ? "Checking..."
+                  : aiStatus?.configured &&
+                      aiStatus.provider === aiProvider &&
+                      aiStatus.auth_mode === aiMode
                     ? "Save"
                     : "Connect"}
               </button>
@@ -590,10 +684,18 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
             </div>
           </form>
           <p className="hint">
-            Saving makes one tiny real call to check the key works, so a typo is caught here rather than discovered
-            as a failing button later. Leave <strong>Model</strong> blank to track the default as it moves; set it if
-            your key doesn't have access to that one.
+            Saving makes one tiny real call to check the credential works, so a typo is caught here
+            rather than discovered as a failing button later. Leave <strong>Model</strong> blank to
+            track the default as it moves; set it if your account doesn't have access to that one.
           </p>
+          {aiMode === "chatgpt_plan" && (
+            <p className="hint">
+              The sign-in is stored on this server and never sent back to the browser. Revoke it any
+              time from ChatGPT &rarr; Settings &rarr; Connected apps, and cap what this app may
+              spend there too. It lapses after 30 days without use &mdash; re-run the helper to
+              renew.
+            </p>
+          )}
         </div>
       )}
 

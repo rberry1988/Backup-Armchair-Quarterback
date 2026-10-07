@@ -2,6 +2,7 @@ import type {
   ActivityResponse,
   AdminUser,
   AiAnalysis,
+  AiAuthMode,
   AiCredentialsStatus,
   AiTopic,
   AlertsResponse,
@@ -117,13 +118,25 @@ export const api = {
     }),
 
   getAiCredentials: () => request<AiCredentialsStatus>("/api/auth/ai-credentials"),
-  // An empty provider disconnects. An empty apiKey with a provider set means
-  // "keep the key already saved, just change the model" — the key is never
-  // readable back, so re-typing it to change a model isn't an option.
-  setAiCredentials: (provider: string, apiKey: string, model: string) =>
+  // An empty provider disconnects. An empty credential with a provider set
+  // means "keep the one already saved, just change the model" — neither the
+  // key nor the ChatGPT token is readable back, so re-pasting to change a
+  // model isn't an option.
+  setAiCredentials: (
+    provider: string,
+    authMode: AiAuthMode,
+    credential: string,
+    model: string
+  ) =>
     request<AiCredentialsStatus>("/api/auth/ai-credentials", {
       method: "POST",
-      body: JSON.stringify({ provider, api_key: apiKey, model }),
+      body: JSON.stringify({
+        provider,
+        auth_mode: authMode,
+        api_key: authMode === "api_key" ? credential : "",
+        chatgpt_token: authMode === "chatgpt_plan" ? credential : "",
+        model,
+      }),
     }),
   // POST because each call spends the user's own API credit.
   getAiAnalysis: (leagueId: number, topic: AiTopic) =>

@@ -868,3 +868,30 @@ button:disabled {
   font: inherit;
   width: 100%;
 }
+
+/* The AI panel's ChatGPT-plan mode: a command to copy, and a paste box big
+   enough to see that a whole token landed in it. */
+.ai-panel textarea {
+  background: #1b1d23;
+  color: inherit;
+  border: 1px solid #2a2d34;
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  width: 100%;
+  resize: vertical;
+  /* The token is one very long unbroken string; without this it forces the
+     whole panel wider than the viewport on a phone. */
+  word-break: break-all;
+}
+
+.ai-signin-cmd {
+  background: #202127;
+  border: 1px solid #2a2d34;
+  border-radius: 4px;
+  padding: 0.5rem 0.6rem;
+  margin: 0.4rem 0 0.6rem;
+  font-size: 0.8rem;
+  overflow-x: auto;
+}

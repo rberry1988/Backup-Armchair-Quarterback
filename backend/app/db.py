@@ -81,6 +81,7 @@ def init_db():
         _ensure_column(conn, "users", "ai_provider", "VARCHAR")
         _ensure_column(conn, "users", "ai_api_key", "VARCHAR")
         _ensure_column(conn, "users", "ai_model", "VARCHAR")
+        _ensure_column(conn, "users", "ai_oauth", "JSON")
         _ensure_column(conn, "leagues", "fantasycalc_values", "JSON DEFAULT '{}'")
         _ensure_column(conn, "leagues", "fantasypros_injuries", "JSON DEFAULT '{}'")
         _ensure_column(conn, "leagues", "defense_vs_position", "JSON DEFAULT '{}'")

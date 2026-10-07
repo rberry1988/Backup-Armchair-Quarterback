@@ -135,10 +135,17 @@ class AiCredentialsRequest(BaseModel):
     model would be the only alternative."""
 
     provider: str = Field(default="", max_length=20)
+    # "api_key" (default) or "chatgpt_plan". Only OpenAI offers the latter;
+    # Anthropic prohibits third-party use of consumer-subscription OAuth.
+    auth_mode: str = Field(default="api_key", max_length=20)
     # Long enough for any current key format (OpenAI project keys are the
     # longest at ~200 chars) with headroom, and bounded so an oversized body
     # is rejected before anything tries to use it as a credential.
     api_key: str = Field(default="", max_length=500)
+    # The blob tools/chatgpt_signin.py prints: base64 wrapping two JWTs, so
+    # several KB rather than several hundred bytes. Still bounded, for the
+    # same reason api_key is.
+    chatgpt_token: str = Field(default="", max_length=20000)
     # Blank means "use the default for this provider" rather than "no model".
     model: str = Field(default="", max_length=120)
 
@@ -155,12 +162,19 @@ class AiCredentialsStatus(BaseModel):
     configured: bool
     provider: str | None = None
     provider_label: str | None = None
+    # "api_key" or "chatgpt_plan" — which credential is actually in use, so
+    # the panel opens on the mode the account is already on.
+    auth_mode: str | None = None
     # The model that will actually be used (the saved override, or the
     # provider's default), so the UI never has to guess.
     model: str | None = None
     # What this provider defaults to, so the model box can show a real
     # placeholder instead of an empty one.
     default_model: str | None = None
+    # ChatGPT plan mode only: which ChatGPT account is connected, for people
+    # with more than one. Read out of the ID token by the sign-in helper and
+    # stored for display; never used to decide anything.
+    chatgpt_account: str | None = None
 
 
 class AiAnalysisResponse(BaseModel):

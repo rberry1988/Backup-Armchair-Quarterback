@@ -32,6 +32,9 @@ from __future__ import annotations
 import datetime
 import time
 
+from sqlalchemy.orm import Session
+
+from app import chatgpt_oauth
 from app.models import User
 
 # ---------------------------------------------------------------------------
@@ -134,6 +137,24 @@ def record_call(user_id: int) -> None:
 # ---------------------------------------------------------------------------
 
 
+# How an account pays for its calls. "api_key" bills the provider account the
+# key belongs to; "chatgpt_plan" spends a ChatGPT Plus/Pro allowance via
+# Sign in with ChatGPT (OpenAI only — Anthropic prohibits the equivalent for
+# third-party apps, see app/chatgpt_oauth.py's module docstring).
+API_KEY = "api_key"
+CHATGPT_PLAN = "chatgpt_plan"
+
+
+def auth_mode(user: User) -> str | None:
+    """Which credential this account is actually using, or None."""
+    provider = normalize_provider(user.ai_provider)
+    if provider is None:
+        return None
+    if provider == OPENAI and (user.ai_oauth or {}).get("access_token"):
+        return CHATGPT_PLAN
+    return API_KEY if user.ai_api_key else None
+
+
 def normalize_provider(value: str | None) -> str | None:
     """Returns a known provider id, or None for anything else — including
     the empty string, which is how the UI says "disconnect"."""
@@ -149,7 +170,7 @@ def resolved_model(user: User) -> str | None:
 
 
 def is_configured(user: User) -> bool:
-    return bool(user.ai_api_key) and normalize_provider(user.ai_provider) is not None
+    return auth_mode(user) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -508,32 +529,66 @@ def _call_anthropic(api_key: str, model: str, prompt: str) -> str:
     return text
 
 
-def _call_openai(api_key: str, model: str, prompt: str) -> str:
+def _call_openai(credential: str, model: str, prompt: str, plan_usage: bool = False) -> str:
+    """One Responses API call, by API key or against a ChatGPT plan.
+
+    The two differ in request shape, not just in who pays. Plan usage
+    *requires* store=false and stream=true, and the result only counts once a
+    response.completed event arrives — the SDK's get_final_response() raises
+    if the stream ends without one, which is exactly the check the flow asks
+    for. max_output_tokens is left off that path: the docs don't list it
+    among the supported parameters, and the system prompt bounds the length
+    anyway, so sending it risks a 400 to no benefit.
+    """
     try:
         import openai
     except ImportError as exc:
         raise _missing_sdk("openai") from exc
 
-    client = openai.OpenAI(api_key=api_key, timeout=REQUEST_TIMEOUT_SECONDS, max_retries=1)
+    client = openai.OpenAI(api_key=credential, timeout=REQUEST_TIMEOUT_SECONDS, max_retries=1)
     try:
-        response = client.responses.create(
-            model=model,
-            instructions=SYSTEM_PROMPT,
-            input=prompt,
-            max_output_tokens=MAX_OUTPUT_TOKENS,
-        )
+        if plan_usage:
+            with client.responses.stream(
+                model=model,
+                instructions=SYSTEM_PROMPT,
+                input=prompt,
+                store=False,
+            ) as stream:
+                response = stream.get_final_response()
+        else:
+            response = client.responses.create(
+                model=model,
+                instructions=SYSTEM_PROMPT,
+                input=prompt,
+                max_output_tokens=MAX_OUTPUT_TOKENS,
+            )
     except openai.AuthenticationError as exc:
-        raise AiAdvisorError("OpenAI rejected that API key. Check it in Settings → Account.") from exc
+        raise AiAdvisorError(
+            "Your ChatGPT sign-in was rejected. Run the sign-in helper again and paste the "
+            "new token in Settings \u2192 Account."
+            if plan_usage
+            else "OpenAI rejected that API key. Check it in Settings \u2192 Account."
+        ) from exc
     except openai.PermissionDeniedError as exc:
-        raise AiAdvisorError("That OpenAI key isn't allowed to use this model.") from exc
+        raise AiAdvisorError(
+            "Your ChatGPT plan isn't authorised to run this. Plan usage needs an active Plus "
+            "or Pro subscription."
+            if plan_usage
+            else "That OpenAI key isn't allowed to use this model."
+        ) from exc
     except openai.NotFoundError as exc:
         raise AiAdvisorError(
             f"OpenAI doesn't recognise the model '{model}'. Set a different one in "
-            f"Settings → Account."
+            f"Settings \u2192 Account."
         ) from exc
     except openai.RateLimitError as exc:
         raise AiRateLimitError(
-            "OpenAI is rate-limiting this key, or the account is out of credit."
+            # Plan usage stops at the weekly per-app cap rather than falling
+            # back to anyone's billing, so this is a wait, not a top-up.
+            "You've used up this app's share of your ChatGPT plan for the week. You can raise "
+            "the cap in ChatGPT \u2192 Settings \u2192 Connected apps, or wait for it to reset."
+            if plan_usage
+            else "OpenAI is rate-limiting this key, or the account is out of credit."
         ) from exc
     except openai.APITimeoutError as exc:
         raise AiProviderError("OpenAI didn't answer in time. Try again.") from exc
@@ -541,12 +596,17 @@ def _call_openai(api_key: str, model: str, prompt: str) -> str:
         raise AiProviderError("Couldn't reach OpenAI from this server.") from exc
     except openai.APIStatusError as exc:
         raise AiProviderError(f"OpenAI returned an error ({exc.status_code}).") from exc
+    except RuntimeError as exc:
+        # get_final_response() raises this when the stream ended without a
+        # response.completed event — the one case the plan-usage flow says
+        # must not be treated as a success.
+        raise AiProviderError("OpenAI's response was cut off before it finished. Try again.") from exc
 
     text = (response.output_text or "").strip()
     if not text:
         raise AiProviderError(
             "The model used its whole response budget reasoning and didn't get to an answer. "
-            "Try again, or pick a lighter model in Settings → Account."
+            "Try again, or pick a lighter model in Settings \u2192 Account."
         )
     return text
 
@@ -554,7 +614,30 @@ def _call_openai(api_key: str, model: str, prompt: str) -> str:
 _CALLERS = {ANTHROPIC: _call_anthropic, OPENAI: _call_openai}
 
 
-def generate_analysis(user: User, topic: str, data: dict) -> dict:
+def _credential(db: Session, user: User) -> tuple[str, bool]:
+    """This account's live credential, plus whether it's a ChatGPT plan.
+
+    Resolving the plan credential can refresh an expired access token, which
+    is why this needs a session: OpenAI rotates the refresh token on every
+    use, so the new pair has to be written before it's spent.
+    """
+    mode = auth_mode(user)
+    if mode is None:
+        raise AiAdvisorError(
+            "No AI provider connected. Add a Claude or OpenAI key, or sign in with ChatGPT, "
+            "in Settings \u2192 Account."
+        )
+    if mode == CHATGPT_PLAN:
+        try:
+            return chatgpt_oauth.access_token(db, user), True
+        except chatgpt_oauth.ChatGptAuthError as exc:
+            # Already phrased for a person; re-raised as our own type so the
+            # HTTP layer has one exception family to catch.
+            raise AiAdvisorError(str(exc)) from exc
+    return user.ai_api_key, False
+
+
+def generate_analysis(db: Session, user: User, topic: str, data: dict) -> dict:
     """Ask this user's own provider to reason over `data`.
 
     Raises AiAdvisorError for anything the user can act on — no credential,
@@ -562,10 +645,7 @@ def generate_analysis(user: User, topic: str, data: dict) -> dict:
     HTTP response with a message worth reading.
     """
     provider = normalize_provider(user.ai_provider)
-    if provider is None or not user.ai_api_key:
-        raise AiAdvisorError(
-            "No AI provider connected. Add a Claude or OpenAI API key in Settings → Account."
-        )
+    credential, plan_usage = _credential(db, user)
     model = resolved_model(user) or DEFAULT_MODELS[provider]
     prompt = build_prompt(topic, data)
 
@@ -575,7 +655,11 @@ def generate_analysis(user: User, topic: str, data: dict) -> dict:
     # persistently failing loop retry without limit.
     record_call(user.id)
 
-    analysis = _CALLERS[provider](user.ai_api_key, model, prompt)
+    if plan_usage:
+        analysis = _call_openai(credential, model, prompt, plan_usage=True)
+    else:
+        analysis = _CALLERS[provider](credential, model, prompt)
+
     return {
         "topic": topic,
         "provider": provider,
@@ -586,9 +670,13 @@ def generate_analysis(user: User, topic: str, data: dict) -> dict:
     }
 
 
-def verify_credentials(provider: str, api_key: str, model: str) -> None:
-    """One cheap real call, so a typo'd key is caught at Save rather than
-    discovered as a failed button three days later. Raises AiAdvisorError."""
+def verify_credentials(provider: str, api_key: str, model: str, plan_usage: bool = False) -> None:
+    """One cheap real call, so a typo'd key — or a sign-in that didn't
+    actually grant plan usage — is caught at Save rather than discovered as a
+    failed button three days later. Raises AiAdvisorError."""
+    if plan_usage:
+        _call_openai(api_key, model, "Reply with the single word: ready.", plan_usage=True)
+        return
     caller = _CALLERS.get(provider)
     if caller is None:
         raise AiAdvisorError("Unknown provider.")
