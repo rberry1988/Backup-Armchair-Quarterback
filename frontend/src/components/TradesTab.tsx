@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import type { TradeResponse } from "../types";
 import { api } from "../api";
+import { AiAnalystPanel } from "./AiAnalystPanel";
 
-export function TradesTab({ leagueId }: { leagueId: number }) {
+export function TradesTab({ leagueId, isPremium }: { leagueId: number; isPremium: boolean }) {
   const [data, setData] = useState<TradeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +62,13 @@ export function TradesTab({ leagueId }: { leagueId: number }) {
           </div>
         ))
       )}
+
+      <AiAnalystPanel
+        leagueId={leagueId}
+        topic="trades"
+        isPremium={isPremium}
+        blurb="Hands the positional strengths above to your own Claude or OpenAI key and asks which of these partners is worth messaging, what to open with, and where summed projections are misleading."
+      />
     </div>
   );
 }

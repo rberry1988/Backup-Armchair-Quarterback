@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { ApiError, api } from "../api";
 import { ESPN_BOOKMARKLET, parseEspnCookies } from "../espnCookies";
+import type { AiCredentialsStatus } from "../types";
 
 interface Props {
   email: string;
@@ -39,6 +40,17 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
   const [webhookError, setWebhookError] = useState<string | null>(null);
   const [webhookSaved, setWebhookSaved] = useState<string | null>(null);
   const [savingWebhook, setSavingWebhook] = useState(false);
+  // AI analyst. The API key, like the ESPN cookies and the webhook URL
+  // above, is write-only from the browser's point of view — the server only
+  // ever reports whether one is saved, for which provider and model.
+  const [aiStatus, setAiStatus] = useState<AiCredentialsStatus | null>(null);
+  const [aiProvider, setAiProvider] = useState("anthropic");
+  const [aiKey, setAiKey] = useState("");
+  const [aiModel, setAiModel] = useState("");
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiSaved, setAiSaved] = useState<string | null>(null);
+  const [savingAi, setSavingAi] = useState(false);
+
   // React 19 refuses to render a javascript: href, which is exactly what a
   // bookmarklet is, so the attribute is set on the DOM node directly. The
   // link is there to be dragged to a bookmarks bar, not clicked here —
@@ -93,6 +105,61 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
       ignore = true;
     };
   }, [isPremium]);
+
+  useEffect(() => {
+    if (!isPremium) return; // the endpoint would 403 anyway
+    let ignore = false;
+    api
+      .getAiCredentials()
+      .then((status) => {
+        if (ignore) return;
+        setAiStatus(status);
+        // Start the form on whatever is already connected, so "change the
+        // model" doesn't silently mean "switch provider".
+        if (status.provider) setAiProvider(status.provider);
+      })
+      .catch(() => {
+        // Non-critical: the panel still works, it just starts out assuming
+        // nothing is connected.
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [isPremium]);
+
+  async function handleSaveAi(e: FormEvent) {
+    e.preventDefault();
+    setAiError(null);
+    setAiSaved(null);
+    setSavingAi(true);
+    try {
+      const status = await api.setAiCredentials(aiProvider, aiKey.trim(), aiModel.trim());
+      setAiStatus(status);
+      setAiKey("");
+      setAiSaved(`Connected to ${status.provider_label} using ${status.model}.`);
+    } catch (err) {
+      setAiError(err instanceof ApiError ? err.message : "Couldn't save that key.");
+    } finally {
+      setSavingAi(false);
+    }
+  }
+
+  async function handleDisconnectAi() {
+    setAiError(null);
+    setAiSaved(null);
+    setSavingAi(true);
+    try {
+      const status = await api.setAiCredentials("", "", "");
+      setAiStatus(status);
+      setAiKey("");
+      setAiModel("");
+      setAiSaved("Disconnected. The written analysis panels will stop offering themselves.");
+    } catch (err) {
+      setAiError(err instanceof ApiError ? err.message : "Couldn't disconnect.");
+    } finally {
+      setSavingAi(false);
+    }
+  }
 
   async function handleSaveWebhook(e: FormEvent) {
     e.preventDefault();
@@ -436,6 +503,96 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
           <p className="hint">
             A webhook URL lets anyone who has it post into that channel, so it's stored on this server and never sent
             back to the browser &mdash; same as your ESPN session above.
+          </p>
+        </div>
+      )}
+
+      {isPremium && (
+        <div className="espn-connect ai-panel">
+          <h3>
+            AI analyst{" "}
+            <span className={aiStatus?.configured ? "success" : "hint"} style={{ fontSize: "0.8rem" }}>
+              {aiStatus?.configured ? `On \u2014 ${aiStatus.provider_label}` : "Off"}
+            </span>
+          </h3>
+          <p className="hint">
+            Connect your own Claude or OpenAI API key and the <strong>Waivers</strong>, <strong>Trades</strong> and{" "}
+            <strong>Start/Sit</strong> tabs each get an <em>Ask the AI analyst</em> button. It's handed the same
+            numbers you're looking at &mdash; projections, the defensive yardage behind each matchup rating, usage
+            trends, FAAB balances &mdash; and asked to weigh them up and tell you what it would do. It's told not to
+            state any figure the app didn't give it, so it can't quietly invent stats.
+          </p>
+          <p className="hint">
+            The key is yours and the calls are billed to it, so nobody else on this instance can spend it. There's a
+            cap of 20 analyses an hour per account.
+          </p>
+          <form onSubmit={handleSaveAi} style={{ maxWidth: "460px" }}>
+            <label className="espn-paste-label">
+              Provider
+              <select value={aiProvider} onChange={(e) => setAiProvider(e.target.value)}>
+                <option value="anthropic">Claude (Anthropic)</option>
+                <option value="openai">OpenAI</option>
+              </select>
+            </label>
+            <label className="espn-paste-label">
+              API key
+              <input
+                type="password"
+                value={aiKey}
+                onChange={(e) => setAiKey(e.target.value)}
+                placeholder={
+                  aiStatus?.configured && aiStatus.provider === aiProvider
+                    ? "Saved - paste a new key to replace it"
+                    : aiProvider === "anthropic"
+                      ? "sk-ant-..."
+                      : "sk-..."
+                }
+                autoComplete="off"
+              />
+            </label>
+            <label className="espn-paste-label">
+              Model <span className="hint">(optional)</span>
+              <input
+                type="text"
+                value={aiModel}
+                onChange={(e) => setAiModel(e.target.value)}
+                placeholder={
+                  (aiStatus?.provider === aiProvider ? aiStatus?.model : null) ??
+                  (aiProvider === "anthropic" ? "claude-opus-5-5" : "gpt-6.1-sol")
+                }
+                autoComplete="off"
+              />
+            </label>
+            {aiError && <p className="error">{aiError}</p>}
+            {aiSaved && <p className="success">{aiSaved}</p>}
+            <div className="form-row">
+              <button
+                type="submit"
+                disabled={
+                  savingAi ||
+                  // A key is required to connect, or to switch provider. Once
+                  // one is saved for this provider, a model change alone is a
+                  // valid save — the server reuses the stored key.
+                  (!aiKey.trim() && !(aiStatus?.configured && aiStatus.provider === aiProvider))
+                }
+              >
+                {savingAi
+                  ? "Checking the key..."
+                  : aiStatus?.configured && aiStatus.provider === aiProvider
+                    ? "Save"
+                    : "Connect"}
+              </button>
+              {aiStatus?.configured && (
+                <button type="button" onClick={handleDisconnectAi} disabled={savingAi}>
+                  Disconnect
+                </button>
+              )}
+            </div>
+          </form>
+          <p className="hint">
+            Saving makes one tiny real call to check the key works, so a typo is caught here rather than discovered
+            as a failing button later. Leave <strong>Model</strong> blank to track the default as it moves; set it if
+            your key doesn't have access to that one.
           </p>
         </div>
       )}

@@ -253,6 +253,32 @@ export interface PendingClaimsResponse {
   error: string | null;
 }
 
+export interface AiCredentialsStatus {
+  configured: boolean;
+  /** "anthropic" | "openai" — null when nothing is connected. */
+  provider: string | null;
+  provider_label: string | null;
+  /** The model that will actually be used (saved override, or the default). */
+  model: string | null;
+  /** This provider's default, for the model box's placeholder. */
+  default_model: string | null;
+}
+
+/** Which tabs can ask for written analysis. Matches the topics the backend's
+ *  /ai-analysis/{topic} route accepts. */
+export type AiTopic = "waivers" | "trades" | "start-sit";
+
+export interface AiAnalysis {
+  topic: string;
+  provider: string;
+  provider_label: string;
+  model: string;
+  /** Markdown-ish prose. Never contains figures the app didn't supply — see
+   *  backend/app/ai_advisor.py's system prompt. */
+  analysis: string;
+  generated_at: string;
+}
+
 export interface WebhookStatus {
   configured: boolean;
   /** "Discord" or "Slack" — never the URL, which is a bearer token. */

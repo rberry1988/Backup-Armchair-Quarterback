@@ -6,6 +6,7 @@ import { InjuryBadge } from "./InjuryBadge";
 import { formatPoints } from "../formatPoints";
 import { starterSlotRank } from "../lineupSlotOrder";
 import { matchupDetail } from "../matchupDetail";
+import { AiAnalystPanel } from "./AiAnalystPanel";
 
 // Backend returns lineup rows in a "most-constrained slot first" solver
 // order, not a display order — same QB/RB/RB/WR/WR/TE/FLEX/D/K ordering
@@ -28,7 +29,7 @@ function noMatchupNote(row: StartSitRow): string {
   return "No opponent data for this team yet — re-sync to pull the schedule.";
 }
 
-export function StartSitTab({ leagueId }: { leagueId: number }) {
+export function StartSitTab({ leagueId, isPremium }: { leagueId: number; isPremium: boolean }) {
   const [data, setData] = useState<StartSitResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,6 +91,13 @@ export function StartSitTab({ leagueId }: { leagueId: number }) {
           </tbody>
         </table>
       </div>
+
+      <AiAnalystPanel
+        leagueId={leagueId}
+        topic="start-sit"
+        isPremium={isPremium}
+        blurb="Hands the lineup above — projections, injury status and the defensive yardage behind each matchup rating — to your own Claude or OpenAI key and asks which swaps are actually worth making."
+      />
     </div>
   );
 }

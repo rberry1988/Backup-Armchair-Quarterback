@@ -60,6 +60,25 @@ class User(Base):
     # Validated against a host allowlist before it is ever stored or used —
     # see app/notifications.py, which explains why that matters.
     webhook_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    # This account's own LLM credential, used to turn the numbers the app
+    # already computes into written reasoning on the Waivers, Trades and
+    # Start/Sit tabs. Per-account on purpose: these calls are billed to
+    # whoever's key makes them, so there is no instance-wide key to spend
+    # someone else's money from — see app/ai_advisor.py.
+    #
+    # ai_provider is "anthropic" or "openai" (validated in ai_advisor, not
+    # by the column — SQLite has no enum and a CHECK constraint added later
+    # can't be migrated onto an existing table without rebuilding it).
+    # ai_model is the model id, defaulted per provider and overridable so a
+    # key without access to the default isn't stuck.
+    #
+    # Like the ESPN cookies above, the key is stored as written because the
+    # provider needs it verbatim, and it is never sent back to any client —
+    # not even its owner. See main.py's /api/auth/ai-credentials, which
+    # reports only whether one is set, for which provider and model.
+    ai_provider: Mapped[str | None] = mapped_column(String, nullable=True)
+    ai_api_key: Mapped[str | None] = mapped_column(String, nullable=True)
+    ai_model: Mapped[str | None] = mapped_column(String, nullable=True)
 
     leagues: Mapped[list["League"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 

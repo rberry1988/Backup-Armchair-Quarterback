@@ -128,6 +128,50 @@ class WebhookStatus(BaseModel):
     service: str | None = None
 
 
+class AiCredentialsRequest(BaseModel):
+    """An empty provider clears the connection. An empty api_key with a
+    provider still set means "keep the key I already saved and just change
+    the model" — the key is never readable, so re-pasting it to change a
+    model would be the only alternative."""
+
+    provider: str = Field(default="", max_length=20)
+    # Long enough for any current key format (OpenAI project keys are the
+    # longest at ~200 chars) with headroom, and bounded so an oversized body
+    # is rejected before anything tries to use it as a credential.
+    api_key: str = Field(default="", max_length=500)
+    # Blank means "use the default for this provider" rather than "no model".
+    model: str = Field(default="", max_length=120)
+
+
+class AiCredentialsStatus(BaseModel):
+    """Says only whether a key is saved, for whom, and against which model.
+
+    The key itself is never returned — not even to the account that saved
+    it. Same reasoning as EspnCredentialsStatus: it's a bearer credential
+    that can spend money, and a readback endpoint is a readback endpoint no
+    matter who is asking.
+    """
+
+    configured: bool
+    provider: str | None = None
+    provider_label: str | None = None
+    # The model that will actually be used (the saved override, or the
+    # provider's default), so the UI never has to guess.
+    model: str | None = None
+    # What this provider defaults to, so the model box can show a real
+    # placeholder instead of an empty one.
+    default_model: str | None = None
+
+
+class AiAnalysisResponse(BaseModel):
+    topic: str
+    provider: str
+    provider_label: str
+    model: str
+    analysis: str
+    generated_at: datetime.datetime
+
+
 class AdminUserOut(BaseModel):
     id: int
     email: str

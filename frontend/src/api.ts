@@ -1,6 +1,9 @@
 import type {
   ActivityResponse,
   AdminUser,
+  AiAnalysis,
+  AiCredentialsStatus,
+  AiTopic,
   AlertsResponse,
   BenchPointsResponse,
   ChangesResponse,
@@ -112,6 +115,19 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ espn_s2: espnS2, swid }),
     }),
+
+  getAiCredentials: () => request<AiCredentialsStatus>("/api/auth/ai-credentials"),
+  // An empty provider disconnects. An empty apiKey with a provider set means
+  // "keep the key already saved, just change the model" — the key is never
+  // readable back, so re-typing it to change a model isn't an option.
+  setAiCredentials: (provider: string, apiKey: string, model: string) =>
+    request<AiCredentialsStatus>("/api/auth/ai-credentials", {
+      method: "POST",
+      body: JSON.stringify({ provider, api_key: apiKey, model }),
+    }),
+  // POST because each call spends the user's own API credit.
+  getAiAnalysis: (leagueId: number, topic: AiTopic) =>
+    request<AiAnalysis>(`/api/league/${leagueId}/ai-analysis/${topic}`, { method: "POST" }),
 
   getWebhook: () => request<WebhookStatus>("/api/auth/webhook"),
   setWebhook: (webhookUrl: string) =>

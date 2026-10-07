@@ -14,6 +14,7 @@ import { formatPoints } from "../formatPoints";
 import { MatchupTag } from "./MatchupTag";
 import { TrendTag } from "./TrendTag";
 import { InjuryBadge } from "./InjuryBadge";
+import { AiAnalystPanel } from "./AiAnalystPanel";
 
 type Lens = "this-week" | "rest-of-season";
 
@@ -548,6 +549,13 @@ export function WaiversTab({ leagueId, isPremium }: { leagueId: number; isPremiu
           )
         )
       )}
+
+      <AiAnalystPanel
+        leagueId={leagueId}
+        topic="waivers"
+        isPremium={isPremium}
+        blurb="Hands both lists above — adjusted projections, usage trends, matchup yardage and your real FAAB balance — to your own Claude or OpenAI key and asks which claims to put in and what to bid."
+      />
     </div>
   );
 }

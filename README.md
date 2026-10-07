@@ -86,6 +86,21 @@ teams, and scoring rules) and gives you three things every week:
   what it cost, and a per-manager spending profile. Remaining budget says
   what a rival *can* spend; what they've actually paid for past claims is
   the better guide to whether they'll outbid you.
+- **AI analyst** (premium, needs your own API key) — connect a Claude
+  (Anthropic) or OpenAI key under **Settings → Account** and the
+  **Waivers**, **Trades** and **Start/Sit** tabs each get an *Ask the AI
+  analyst* button. It's handed the same figures you're looking at — the
+  adjusted projections, the real defensive yardage behind each matchup
+  rating, usage trends, FAAB balances, positional strength vs the league
+  median — and asked to weigh them up: which claims to actually put in and
+  what to bid, which swaps are worth making, which trade partner is worth
+  messaging. It's told to use only the numbers it's given and never to
+  state a stat the app didn't supply, so it can't quietly invent one.
+  The key is yours and the calls are billed to it; there is deliberately no
+  instance-wide key, so nobody else here can spend it. Capped at 20
+  analyses an hour per account. The key is verified with one tiny real call
+  when you save it, stored on the server, and never sent back to any
+  browser — same as the ESPN cookies and the webhook URL.
 - **Pending Moves** (premium, needs a connected ESPN account) — on the
   Waivers tab, the waiver claims,
   free-agent adds and trade offers you have genuinely submitted in ESPN and

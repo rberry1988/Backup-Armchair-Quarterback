@@ -8,3 +8,8 @@ python-dotenv==1.2.3
 bcrypt==5.0.0
 pyjwt==2.14.0
 email-validator==2.3.0
+# Per-user AI advisor (app/ai_advisor.py). Both are the providers' own
+# official SDKs; they're imported lazily at call time so a box that hasn't
+# re-run pip yet still boots and fails only that one button.
+anthropic==1.12.0
+openai==3.26.0

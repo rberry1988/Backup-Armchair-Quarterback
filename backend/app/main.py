@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.alerts import get_roster_alerts
 from app.app_settings import fantasypros_api_key_source, set_fantasypros_api_key
+from app import ai_advisor
 from app.auto_sync import auto_sync_loop, clamp_interval_hours
 from app.auth import (
     PENDING_APPROVAL_DETAIL,
@@ -51,6 +52,9 @@ from app.recommendations.trades import get_trade_suggestions, grade_trade
 from app.recommendations.waivers import get_waiver_targets
 from app.schemas import (
     AdminUserOut,
+    AiAnalysisResponse,
+    AiCredentialsRequest,
+    AiCredentialsStatus,
     AutoSyncRequest,
     ChangePasswordRequest,
     EspnCredentialsRequest,
@@ -285,6 +289,86 @@ def test_webhook(current_user: User = Depends(require_premium)):
             status_code=502,
             detail="That webhook didn't accept the message. Check the URL is still valid in Discord or Slack.",
         )
+
+
+def _ai_credentials_status(user: User) -> AiCredentialsStatus:
+    provider = ai_advisor.normalize_provider(user.ai_provider)
+    if provider is None or not user.ai_api_key:
+        return AiCredentialsStatus(configured=False)
+    return AiCredentialsStatus(
+        configured=True,
+        provider=provider,
+        provider_label=ai_advisor.PROVIDER_LABELS[provider],
+        model=ai_advisor.resolved_model(user),
+        default_model=ai_advisor.DEFAULT_MODELS[provider],
+    )
+
+
+# Connecting an LLM is premium for the same reason connecting ESPN is: the
+# three panels it writes for (Waivers, Trades, Start/Sit explanations) are
+# premium, so the setup for them sits behind the same gate. Enforced here,
+# not only by hiding the panel.
+@app.get("/api/auth/ai-credentials", response_model=AiCredentialsStatus)
+def get_ai_credentials(current_user: User = Depends(require_premium)):
+    """Whether this account has an AI provider connected. Never returns the
+    API key — see AiCredentialsStatus."""
+    return _ai_credentials_status(current_user)
+
+
+@app.post("/api/auth/ai-credentials", response_model=AiCredentialsStatus)
+def set_ai_credentials(
+    payload: AiCredentialsRequest,
+    current_user: User = Depends(require_premium),
+    db: Session = Depends(get_db),
+):
+    """Save, re-point or clear this account's own AI provider credential.
+
+    The key is verified with one real (tiny) call before it is stored, so a
+    typo is caught here rather than discovered as a failing button days
+    later. Nothing is written if that call fails.
+    """
+    provider = ai_advisor.normalize_provider(payload.provider)
+    if provider is None:
+        if payload.provider.strip():
+            raise HTTPException(
+                status_code=422,
+                detail="Pick either Claude (Anthropic) or OpenAI.",
+            )
+        current_user.ai_provider = None
+        current_user.ai_api_key = None
+        current_user.ai_model = None
+        db.commit()
+        return AiCredentialsStatus(configured=False)
+
+    api_key = payload.api_key.strip()
+    if not api_key:
+        # Changing only the model shouldn't require re-pasting a key the
+        # user can't read back. Only valid when a key for this same provider
+        # is already on file.
+        if ai_advisor.normalize_provider(current_user.ai_provider) == provider and current_user.ai_api_key:
+            api_key = current_user.ai_api_key
+        else:
+            raise HTTPException(status_code=422, detail="Paste an API key for that provider.")
+
+    model = payload.model.strip() or ai_advisor.DEFAULT_MODELS[provider]
+
+    try:
+        ai_advisor.verify_credentials(provider, api_key, model)
+    except ai_advisor.AiRateLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except ai_advisor.AiProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ai_advisor.AiAdvisorError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    current_user.ai_provider = provider
+    current_user.ai_api_key = api_key
+    # Stored only when it differs from the default, so an account tracks the
+    # default as it moves rather than being pinned to whatever it was on the
+    # day they set it up.
+    current_user.ai_model = model if model != ai_advisor.DEFAULT_MODELS[provider] else None
+    db.commit()
+    return _ai_credentials_status(current_user)
 
 
 @app.post("/api/auth/change-password", status_code=204)
@@ -841,6 +925,50 @@ def trades(league_id: int, db: Session = Depends(get_db), current_user: User = D
     league = _owned_league_or_404(db, league_id, current_user)
     my_team_id = _require_my_team(league)
     return get_trade_suggestions(db, league.id, my_team_id)
+
+
+# ---------------------------------------------------------------------------
+# AI-written reasoning (premium)
+# ---------------------------------------------------------------------------
+
+# POST rather than GET even though nothing is created: every call spends the
+# user's own API credit, and a GET is something browsers, proxies and
+# prefetchers feel free to replay.
+@app.post("/api/league/{league_id}/ai-analysis/{topic}", response_model=AiAnalysisResponse)
+def ai_analysis(
+    league_id: int,
+    topic: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_premium),
+):
+    """Hand this league's own computed figures to this user's own LLM and
+    return what it makes of them.
+
+    The data is produced by exactly the same functions that feed the tabs,
+    so the analysis can't disagree with what the user is looking at.
+    """
+    league = _owned_league_or_404(db, league_id, current_user)
+    my_team_id = _require_my_team(league)
+
+    if topic == "waivers":
+        data = get_waiver_targets(
+            db, league.id, my_team_id, include_budget=has_premium_access(current_user)
+        )
+    elif topic == "trades":
+        data = get_trade_suggestions(db, league.id, my_team_id)
+    elif topic == "start-sit":
+        data = get_start_sit(db, league.id, my_team_id)
+    else:
+        raise HTTPException(status_code=404, detail="No analysis available for that tab.")
+
+    try:
+        return AiAnalysisResponse(**ai_advisor.generate_analysis(current_user, topic, data))
+    except ai_advisor.AiRateLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except ai_advisor.AiProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ai_advisor.AiAdvisorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/league/{league_id}/expert-rankings")
