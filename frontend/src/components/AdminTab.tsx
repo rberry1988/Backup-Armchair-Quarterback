@@ -15,6 +15,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [pendingAdminId, setPendingAdminId] = useState<number | null>(null);
   const [pendingPremiumId, setPendingPremiumId] = useState<number | null>(null);
+  const [pendingApprovalId, setPendingApprovalId] = useState<number | null>(null);
 
   const [resetTargetId, setResetTargetId] = useState<number | null>(null);
   const [resetPassword, setResetPassword] = useState("");
@@ -155,6 +156,19 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
     }
   }
 
+  async function handleSetApproved(user: AdminUser, approved: boolean) {
+    setPendingApprovalId(user.id);
+    try {
+      const updated = await api.adminSetApproved(user.id, approved);
+      setUsers((prev) => (prev ? prev.map((u) => (u.id === updated.id ? updated : u)) : prev));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't change that account's approval.");
+    } finally {
+      setPendingApprovalId(null);
+    }
+  }
+
   async function handleTogglePremium(user: AdminUser) {
     const makePremium = !user.is_premium;
     setPendingPremiumId(user.id);
@@ -276,6 +290,46 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
       </p>
 
       {error && <p className="error">{error}</p>}
+
+      {users && users.some((u) => !u.approved) && (
+        <div className="pending-approvals">
+          <h3>Waiting for approval</h3>
+          <p className="hint">
+            These accounts exist but can't sign in yet. Approving lets them in immediately; removing deletes the
+            account.
+          </p>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Registered</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {users
+                  .filter((u) => !u.approved)
+                  .map((u) => (
+                    <tr key={u.id}>
+                      <td>{u.email}</td>
+                      <td className="hint">{new Date(u.created_at).toLocaleString()}</td>
+                      <td>
+                        <button onClick={() => handleSetApproved(u, true)} disabled={pendingApprovalId === u.id}>
+                          {pendingApprovalId === u.id ? "Saving..." : "Approve"}
+                        </button>{" "}
+                        <button onClick={() => handleDelete(u)} disabled={pendingApprovalId === u.id}>
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {!users ? (
         <p>Loading...</p>
       ) : (
@@ -287,6 +341,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
                 <th>Joined</th>
                 <th className="num">Leagues</th>
                 <th>Admin</th>
+                <th>Status</th>
                 <th>Access Tier</th>
                 <th></th>
               </tr>
@@ -298,6 +353,19 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
                     <td>{u.email}</td>
                     <td className="hint">{new Date(u.created_at).toLocaleDateString()}</td>
                     <td className="num">{u.league_count}</td>
+                    <td>
+                      {u.admin_locked || u.is_admin ? (
+                        <span className="hint">Approved (admin)</span>
+                      ) : u.approved ? (
+                        <button onClick={() => handleSetApproved(u, false)} disabled={pendingApprovalId === u.id}>
+                          {pendingApprovalId === u.id ? "Saving..." : "Put on hold"}
+                        </button>
+                      ) : (
+                        <button onClick={() => handleSetApproved(u, true)} disabled={pendingApprovalId === u.id}>
+                          {pendingApprovalId === u.id ? "Saving..." : "Approve"}
+                        </button>
+                      )}
+                    </td>
                     <td>
                       {u.admin_locked ? (
                         <span className="hint" title="Set via ADMIN_EMAILS in backend/.env">
@@ -334,7 +402,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
                   {resetTargetId === u.id && (
                     <tr className="bench-row">
                       <td></td>
-                      <td colSpan={5}>
+                      <td colSpan={6}>
                         <form
                           onSubmit={(e) => handleResetPassword(e, u.id)}
                           style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
@@ -362,7 +430,7 @@ export function AdminTab({ currentUserId }: { currentUserId: number }) {
                   {justResetId === u.id && (
                     <tr>
                       <td></td>
-                      <td colSpan={5} className="success">
+                      <td colSpan={6} className="success">
                         Password reset. Share the new one with {u.email} directly.
                       </td>
                     </tr>

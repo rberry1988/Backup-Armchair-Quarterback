@@ -56,6 +56,19 @@ class ResetPasswordRequest(BaseModel):
     _validate_password = field_validator("new_password")(_min_length_password)
 
 
+class RegistrationResponse(BaseModel):
+    """Registration no longer hands back a session. An account exists, but
+    it can't be used until an admin approves it, and returning a token
+    would imply otherwise."""
+
+    pending_approval: bool = True
+    detail: str
+
+
+class SetApprovedRequest(BaseModel):
+    approved: bool
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -129,6 +142,10 @@ class AdminUserOut(BaseModel):
     # Raw premium grant (not OR'd with admin status) — the Admin tab's
     # toggle controls exactly this flag.
     is_premium: bool = False
+    # Whether this account has been let in. Admins read as approved
+    # regardless (see auth.is_approved), so the Admin tab never offers to
+    # hold an account that the gate wouldn't hold anyway.
+    approved: bool = True
 
 
 class SetAdminRequest(BaseModel):

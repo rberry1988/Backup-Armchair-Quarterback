@@ -26,6 +26,13 @@ class User(Base):
     # database), this is how admins add more admins later without editing
     # backend/.env by hand.
     admin_granted: Mapped[bool] = mapped_column(Boolean, default=False)
+    # New accounts wait for an admin to let them in. Defaults to False here
+    # so anyone registering from now on is held; the column is backfilled as
+    # 1 in db.py so every account that existed before this feature keeps
+    # working. See auth.is_approved(), which also exempts admins — an
+    # approval gate that can lock out the only person able to lift it is a
+    # trap, and ADMIN_EMAILS has to stay a way back in.
+    approved: Mapped[bool] = mapped_column(Boolean, default=False)
     # Premium access tier, granted by an admin from the Admin tab. Everyone
     # starts as "basic" (False); gates premium-only features like the Extra
     # tab. See app/auth.py's has_premium_access(), which also grants access

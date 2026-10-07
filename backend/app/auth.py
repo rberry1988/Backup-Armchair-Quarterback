@@ -139,11 +139,33 @@ def get_current_user(
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session")
+    # Checked on every request, not just at login: an admin who revokes
+    # approval expects that to take effect now, and a token issued earlier
+    # would otherwise keep working until it expired.
+    if not is_approved(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PENDING_APPROVAL_DETAIL)
     return user
+
+
+# One string, used by login and by every authenticated request, so the
+# frontend can recognise this specific refusal rather than string-matching
+# several variations of it.
+PENDING_APPROVAL_DETAIL = "Your account is waiting for an admin to approve it."
 
 
 def is_admin(user: User) -> bool:
     return user.email.lower() in settings.admin_email_list or user.admin_granted
+
+
+def is_approved(user: User) -> bool:
+    """Whether this account may use the app at all.
+
+    Admins are always approved. ADMIN_EMAILS is the bootstrap that works on
+    an empty database, and it has to keep working here too — otherwise a
+    fresh install where the operator registers normally would hold the only
+    account that could lift the hold.
+    """
+    return is_admin(user) or user.approved
 
 
 def has_premium_access(user: User) -> bool:

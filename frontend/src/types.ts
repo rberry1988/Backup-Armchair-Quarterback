@@ -23,6 +23,11 @@ export interface User {
   display_name: string | null;
 }
 
+export interface RegistrationResult {
+  pending_approval: boolean;
+  detail: string;
+}
+
 export interface AdminUser {
   id: number;
   email: string;
@@ -31,6 +36,8 @@ export interface AdminUser {
   is_admin: boolean;
   admin_locked: boolean;
   is_premium: boolean;
+  /** Admins always read as approved — the gate exempts them. */
+  approved: boolean;
 }
 
 export interface FantasyProsKeyStatus {

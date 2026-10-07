@@ -128,6 +128,14 @@ Those cookies are stored per account, used only to serve your own
 requests, and never sent back to any browser once saved. ESPN expires them
 every few weeks, so re-run the bookmarklet when claims stop showing up.
 
+**New sign-ups need approving.** Registering creates the account but can't
+sign in until an admin lets it through from the Admin tab, where pending
+accounts appear in their own panel. Accounts that existed before this was
+added keep working untouched, and an `ADMIN_EMAILS` account is always
+approved — an approval gate that can hold the only person able to lift it
+is a trap. Admins with a notification webhook get a message when someone
+is waiting.
+
 Multiple people can use the same instance: each person registers their own
 account and their synced league(s), team selection, and recommendations
 are private to them, even if two people happen to sync the same ESPN

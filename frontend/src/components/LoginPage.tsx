@@ -13,14 +13,23 @@ export function LoginPage({ onLoggedIn }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showForgotHint, setShowForgotHint] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setPending(null);
     try {
-      const result =
-        mode === "login" ? await api.login(email, password) : await api.register(email, password);
+      if (mode === "register") {
+        // Registering no longer signs you in — the account is held until
+        // an admin approves it, so there's nothing to log in with yet.
+        const result = await api.register(email, password);
+        setPending(result.detail);
+        setPassword("");
+        return;
+      }
+      const result = await api.login(email, password);
       setToken(result.access_token);
       onLoggedIn();
     } catch (err) {
@@ -34,7 +43,9 @@ export function LoginPage({ onLoggedIn }: Props) {
     <div className="login-screen">
       <form className="login-card" onSubmit={handleSubmit}>
         <h1>Backup Armchair Quarterback</h1>
-        <p className="hint">{mode === "login" ? "Sign in to your account" : "Create an account"}</p>
+        <p className="hint">
+          {mode === "login" ? "Sign in to your account" : "Create an account — an admin approves new sign-ups"}
+        </p>
 
         <label>
           Email
@@ -60,6 +71,8 @@ export function LoginPage({ onLoggedIn }: Props) {
 
         {error && <p className="error">{error}</p>}
 
+        {pending && <p className="success">{pending}</p>}
+
         <button type="submit" disabled={loading}>
           {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
         </button>
@@ -68,6 +81,7 @@ export function LoginPage({ onLoggedIn }: Props) {
           type="button"
           className="link-button"
           onClick={() => {
+            setPending(null);
             setMode(mode === "login" ? "register" : "login");
             setError(null);
           }}

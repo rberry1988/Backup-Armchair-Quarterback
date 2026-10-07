@@ -12,6 +12,7 @@ import type {
   ScheduleOutlookResponse,
   LeagueSummary,
   LiveMatchupResponse,
+  RegistrationResult,
   MatchupPreviewResponse,
   PlayoffOddsResponse,
   PendingClaimsResponse,
@@ -81,8 +82,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // Returns no token: the account is created but held until an admin
+  // approves it (202 from the server).
   register: (email: string, password: string) =>
-    request<{ access_token: string }>("/api/auth/register", {
+    request<RegistrationResult>("/api/auth/register", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
@@ -213,6 +216,11 @@ export const api = {
     request<AdminUser>(`/api/admin/users/${userId}/admin`, {
       method: "POST",
       body: JSON.stringify({ is_admin: isAdmin }),
+    }),
+  adminSetApproved: (userId: number, approved: boolean) =>
+    request<AdminUser>(`/api/admin/users/${userId}/approved`, {
+      method: "POST",
+      body: JSON.stringify({ approved }),
     }),
   adminSetPremium: (userId: number, isPremium: boolean) =>
     request<AdminUser>(`/api/admin/users/${userId}/premium`, {

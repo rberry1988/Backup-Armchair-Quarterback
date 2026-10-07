@@ -72,6 +72,7 @@ def init_db():
 
     with engine.connect() as conn:
         _ensure_column(conn, "users", "admin_granted", "BOOLEAN NOT NULL DEFAULT 0")
+        _ensure_column(conn, "users", "approved", "BOOLEAN NOT NULL DEFAULT 1")
         _ensure_column(conn, "users", "is_premium", "BOOLEAN NOT NULL DEFAULT 0")
         _ensure_column(conn, "users", "display_name", "VARCHAR")
         _ensure_column(conn, "users", "espn_s2", "VARCHAR")

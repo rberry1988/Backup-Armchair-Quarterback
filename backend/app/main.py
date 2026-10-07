@@ -12,6 +12,7 @@ from app.alerts import get_roster_alerts
 from app.app_settings import fantasypros_api_key_source, set_fantasypros_api_key
 from app.auto_sync import auto_sync_loop, clamp_interval_hours
 from app.auth import (
+    PENDING_APPROVAL_DETAIL,
     check_login_allowed,
     check_registration_allowed,
     clear_failed_logins,
@@ -22,6 +23,7 @@ from app.auth import (
     hash_password,
     is_admin,
     is_admin_locked,
+    is_approved,
     record_failed_login,
     record_registration,
     require_admin,
@@ -41,7 +43,7 @@ from app.fantasypros_client import get_injury_context
 from app.models import League, PlannedMove, RosterEntry, Team, User
 from app.schedule_outlook import get_schedule_outlook
 from app.live_scoring import get_live_matchup
-from app.notifications import send_webhook, webhook_url_error
+from app.notifications import notify_admins_of_registration, send_webhook, webhook_url_error
 from app.playoff_odds import get_playoff_odds
 from app.recommendations.matchup_preview import get_matchup_preview
 from app.recommendations.start_sit import get_start_sit
@@ -57,9 +59,11 @@ from app.schemas import (
     FantasyProsKeyStatus,
     LoginRequest,
     RegisterRequest,
+    RegistrationResponse,
     PlannedMoveRequest,
     ResetPasswordRequest,
     SetAdminRequest,
+    SetApprovedRequest,
     SetMyTeamRequest,
     SetPremiumRequest,
     SyncRequest,
@@ -106,8 +110,13 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 
-@app.post("/api/auth/register", response_model=TokenResponse)
+@app.post("/api/auth/register", response_model=RegistrationResponse, status_code=202)
 def register(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)):
+    """Create an account, pending an admin letting it in.
+
+    202 rather than 200, and no token: the account exists but cannot be
+    used yet, and handing back a session would say otherwise.
+    """
     ip = client_ip(request)
     check_registration_allowed(ip)
     user = User(email=payload.email.lower(), hashed_password=hash_password(payload.password))
@@ -119,7 +128,10 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
         raise HTTPException(status_code=409, detail="An account with that email already exists") from exc
     db.refresh(user)
     record_registration(ip)
-    return TokenResponse(access_token=create_access_token(user.id))
+    notify_admins_of_registration(db, user)
+    return RegistrationResponse(
+        detail="Account created. An admin needs to approve it before you can sign in."
+    )
 
 
 @app.post("/api/auth/login", response_model=TokenResponse)
@@ -134,6 +146,10 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
     clear_failed_logins(email, ip)
+    # Checked after the password, deliberately: answering "waiting for
+    # approval" to a wrong password would confirm the address exists.
+    if not is_approved(user):
+        raise HTTPException(status_code=403, detail=PENDING_APPROVAL_DETAIL)
     return TokenResponse(access_token=create_access_token(user.id))
 
 
@@ -297,6 +313,7 @@ def _admin_user_out(u: User, league_count: int) -> AdminUserOut:
         is_admin=is_admin(u),
         admin_locked=is_admin_locked(u),
         is_premium=u.is_premium,
+        approved=is_approved(u),
     )
 
 
@@ -313,7 +330,10 @@ def admin_list_users(db: Session = Depends(get_db), _admin: User = Depends(requi
 def admin_create_user(
     payload: RegisterRequest, db: Session = Depends(get_db), _admin: User = Depends(require_admin)
 ):
-    user = User(email=payload.email.lower(), hashed_password=hash_password(payload.password))
+    # An admin creating the account *is* the approval.
+    user = User(
+        email=payload.email.lower(), hashed_password=hash_password(payload.password), approved=True
+    )
     db.add(user)
     try:
         db.commit()
@@ -377,6 +397,30 @@ def admin_set_admin(
             detail="This account's admin access is set via ADMIN_EMAILS in backend/.env, not toggleable here.",
         )
     user.admin_granted = payload.is_admin
+    db.commit()
+    db.refresh(user)
+    league_count = db.query(func.count(League.id)).filter(League.user_id == user.id).scalar() or 0
+    return _admin_user_out(user, league_count)
+
+
+@app.post("/api/admin/users/{user_id}/approved", response_model=AdminUserOut)
+def admin_set_approved(
+    user_id: int,
+    payload: SetApprovedRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Let a pending account in, or put an existing one back on hold.
+
+    Revoking takes effect on the holder's very next request, not whenever
+    their token happens to expire — see auth.get_current_user.
+    """
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="You can't change your own approval")
+    user.approved = payload.approved
     db.commit()
     db.refresh(user)
     league_count = db.query(func.count(League.id)).filter(League.user_id == user.id).scalar() or 0

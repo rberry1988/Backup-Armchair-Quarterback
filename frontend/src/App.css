@@ -792,3 +792,19 @@ button:disabled {
 .odds-live-text { color: #8ab4f8; }
 .odds-slim-text { color: #fdd663; }
 .odds-dead-text { color: #f28b82; }
+
+/* Admin: accounts waiting to be let in. Its own panel rather than a
+   column in the list -- a pending signup is a to-do, not an attribute. */
+.pending-approvals {
+  border: 1px solid #5c4a1e;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  background: #1c1a14;
+}
+
+.pending-approvals h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+  color: #fdd663;
+}

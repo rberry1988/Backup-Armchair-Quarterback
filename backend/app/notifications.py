@@ -227,3 +227,32 @@ def run_due_notifications() -> int:
     finally:
         db.close()
     return delivered
+
+
+def notify_admins_of_registration(db, user) -> None:
+    """Tell every admin with a webhook that someone is waiting.
+
+    An approval gate nobody is told about is just a way to lose users, so
+    this is part of the feature rather than a nicety. Best-effort: a
+    registration must succeed whether or not the message lands.
+    """
+    from app.auth import is_admin
+    from app.models import User as UserModel
+
+    try:
+        admins = [
+            a
+            for a in db.query(UserModel).filter(UserModel.webhook_url.isnot(None)).all()
+            if is_admin(a)
+        ]
+        if not admins:
+            return
+        message = (
+            f"**New account awaiting approval**\n\n"
+            f"- {user.email}\n\n"
+            f"Approve or remove it from the Admin tab."
+        )
+        for admin in admins:
+            send_webhook(admin.webhook_url, message)
+    except Exception:  # noqa: BLE001 — a notification must never fail a signup
+        logger.exception("Could not notify admins of a new registration")
