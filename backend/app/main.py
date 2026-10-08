@@ -128,7 +128,23 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
     """
     ip = client_ip(request)
     check_registration_allowed(ip)
-    user = User(email=payload.email.lower(), hashed_password=hash_password(payload.password))
+    email = payload.email.lower()
+
+    # An ADMIN_EMAILS address is admin the moment it exists (auth.is_admin),
+    # and admin bypasses the approval gate (auth.is_approved). So if such an
+    # account is ever absent — a failed bootstrap, or the database being
+    # deleted and re-synced as the README suggests for schema changes, while
+    # backend/.env keeps its ADMIN_EMAILS — this form would hand full admin
+    # to whoever registered it first. The legitimate way to create that
+    # account is `python3 -m app.bootstrap_admin` on the host, which proves
+    # you can already reach the box.
+    #
+    # Deliberately the same 409 as a taken address, so this doesn't become a
+    # way to discover which addresses are configured as admin.
+    if email in settings.admin_email_list:
+        raise HTTPException(status_code=409, detail="An account with that email already exists")
+
+    user = User(email=email, hashed_password=hash_password(payload.password))
     db.add(user)
     try:
         db.commit()

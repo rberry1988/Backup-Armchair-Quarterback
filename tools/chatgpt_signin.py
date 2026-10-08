@@ -66,6 +66,8 @@ APP_NAME = "Backup Armchair Quarterback"
 BLOB_PREFIX = "bacq-chatgpt-1."
 # Matches chatgpt_oauth.CONNECT_PREFIX on the server.
 CONNECT_PREFIX = "bacq-pair-1."
+# The one endpoint this script posts a credential to.
+CLAIM_PATH = "/api/auth/ai-pairing/claim"
 
 # The port OpenAI's docs use in their example. Any loopback port works as
 # long as the authorize request and the token exchange agree on it, but
@@ -143,21 +145,35 @@ def _parse_connect(value: str) -> dict:
 
 
 def _confirm_destination(url: str) -> bool:
-    """A ChatGPT credential is about to cross the network to this app.
+    """Show where the ChatGPT credential is about to be sent, and get a yes.
 
-    Over https that's fine. Over plain http on a home network it's readable
-    by anything on the wire, which is a worse trade than it is for an
-    ordinary app login — so it's the user's call, made explicitly, rather
-    than something that quietly happens.
+    The connect string is an opaque base64 blob, so its destination is
+    invisible to whoever pastes the command — and that destination is the
+    only thing deciding where an access token and a 30-day refresh token
+    get posted. An earlier version of this check only questioned plain
+    http, which meant a blob naming https://somewhere-else/ was accepted in
+    silence. Encryption was never the issue: the question is *who* receives
+    the credential, so that is what gets confirmed.
+
+    Loopback is exempt because it cannot leave the machine the user is
+    already sitting at.
     """
     parsed = urllib.parse.urlparse(url)
-    local = parsed.hostname in ("127.0.0.1", "localhost", "::1")
-    if parsed.scheme == "https" or local:
+    if parsed.hostname in ("127.0.0.1", "localhost", "::1"):
         return True
-    print(f"\n  WARNING: {url} is plain http, not https.")
-    print("  Your ChatGPT credential would cross the network unencrypted.")
+
+    print("\n  " + "-" * 58)
+    print(f"  About to send your ChatGPT credential to:  {parsed.hostname or url}")
+    print(f"  Full destination: {url}{CLAIM_PATH}")
+    print("\n  This is an access token and a 30-day refresh token for your")
+    print("  ChatGPT account. Only continue if that host is your own copy of")
+    print("  Backup Armchair Quarterback.")
+    if parsed.scheme != "https":
+        print("\n  It is also plain http, so the credential crosses the network")
+        print("  unencrypted and anything on the wire can read it.")
+    print("  " + "-" * 58)
     try:
-        return input("  Continue anyway? [y/N] ").strip().lower() in ("y", "yes")
+        return input("  Send it there? [y/N] ").strip().lower() in ("y", "yes")
     except (EOFError, KeyboardInterrupt):
         print()
         return False
@@ -167,7 +183,7 @@ def _deliver(target: dict, blob: str) -> bool:
     """Hand the credential to the app, authenticating with the pairing token."""
     body = json.dumps({"pair_token": target["token"], "chatgpt_token": blob}).encode()
     request = urllib.request.Request(
-        f"{target['url']}/api/auth/ai-pairing/claim",
+        f"{target['url']}{CLAIM_PATH}",
         data=body,
         headers={"Content-Type": "application/json"},
         method="POST",

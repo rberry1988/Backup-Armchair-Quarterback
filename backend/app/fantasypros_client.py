@@ -23,6 +23,7 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import re
 import tempfile
 import time
 
@@ -50,7 +51,16 @@ def infer_scoring_format(scoring_rules: list[dict]) -> str:
     return "STD"
 
 
+# Cache keys are built by interpolating values that originate upstream (a
+# season, a week). Callers coerce those, but this is the function that turns
+# one into a path we write to, so it refuses anything that isn't a plain
+# name rather than trusting every caller to have got it right.
+_SAFE_CACHE_KEY = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
 def _cache_path(cache_key: str) -> str:
+    if not _SAFE_CACHE_KEY.match(cache_key):
+        raise ValueError(f"unsafe cache key: {cache_key!r}")
     os.makedirs(CACHE_DIR, exist_ok=True)
     return os.path.join(CACHE_DIR, f"{cache_key}.json")
 

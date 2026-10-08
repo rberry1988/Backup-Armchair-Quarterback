@@ -193,9 +193,17 @@ if [ "$FRESH_INSTALL" = "1" ]; then
             echo "    Account already exists — leaving it as-is"
             ;;
         *)
-            echo "    WARNING: couldn't create a default admin account (${BOOTSTRAP_RESULT#error:})."
-            echo "    Register your own account from the login page and add its email to"
-            echo "    ADMIN_EMAILS in backend/.env instead."
+            # Fatal on purpose. Continuing would leave ADMIN_EMAILS naming an
+            # account that does not exist, and an instance nobody can
+            # administer: the registration form now refuses to create an
+            # ADMIN_EMAILS address (it would otherwise hand full admin to
+            # whoever claimed it first), so there would be no way back in.
+            echo "    ERROR: couldn't create the admin account (${BOOTSTRAP_RESULT#error:})." >&2
+            echo "    Stopping: an instance with ADMIN_EMAILS set but no such account" >&2
+            echo "    cannot be administered. Fix the error above and re-run this script," >&2
+            echo "    or create the account by hand on this host with:" >&2
+            echo "      cd $APP_DIR/backend && sudo -u $APP_USER .venv/bin/python3 -m app.bootstrap_admin" >&2
+            exit 1
             ;;
     esac
 fi

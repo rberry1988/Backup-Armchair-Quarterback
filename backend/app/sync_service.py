@@ -37,6 +37,20 @@ from app.sync_diff import diff_players, snapshot_players
 logger = logging.getLogger(__name__)
 
 
+# NFL regular season plus playoffs; anything outside this is ESPN returning
+# something we don't understand, and week 1 is the safe read of that.
+MAX_WEEK = 25
+
+
+def _as_week(value) -> int:
+    """ESPN's scoring period as an int in a sane range, whatever it sent."""
+    try:
+        week = int(value)
+    except (TypeError, ValueError):
+        return 1
+    return week if 1 <= week <= MAX_WEEK else 1
+
+
 def _team_name(team_json: dict) -> str:
     name = team_json.get("name")
     if name:
@@ -65,7 +79,13 @@ def sync_league(
     )
     data = client.get_league()
 
-    week = data.get("status", {}).get("latestScoringPeriod") or data.get("scoringPeriodId", 1)
+    # Coerced, not trusted. This value comes straight from ESPN and ends up
+    # interpolated into a cache filename (fantasypros_client._cache_path) as
+    # well as stored on the League row and sent back as scoringPeriodId. A
+    # string here would put ESPN's bytes into a path we then write to.
+    week = _as_week(
+        data.get("status", {}).get("latestScoringPeriod") or data.get("scoringPeriodId", 1)
+    )
     settings_json = data.get("settings", {})
     scoring_rules = build_scoring_rules(data)
     roster_slot_counts = settings_json.get("rosterSettings", {}).get("lineupSlotCounts", {})

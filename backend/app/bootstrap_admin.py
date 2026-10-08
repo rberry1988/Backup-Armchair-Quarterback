@@ -48,7 +48,20 @@ def main() -> None:
                 print(f"exists:{email}")
                 return
             password = generate_password()
-            db.add(User(email=email, hashed_password=hash_password(password)))
+            # Explicitly admin and approved in the database rather than
+            # relying on this address matching ADMIN_EMAILS. Two reasons:
+            # the account keeps working if the operator later changes that
+            # config value, and its authority no longer rests on owning an
+            # email string — which is what made an absent bootstrap account
+            # claimable from the public registration form.
+            db.add(
+                User(
+                    email=email,
+                    hashed_password=hash_password(password),
+                    approved=True,
+                    admin_granted=True,
+                )
+            )
             db.commit()
             print(f"created:{email}:{password}")
         finally:
