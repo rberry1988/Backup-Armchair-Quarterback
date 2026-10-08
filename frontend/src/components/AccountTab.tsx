@@ -57,7 +57,9 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
   // belongs to, and waits for the helper to deliver the sign-in itself.
   const [pairCommand, setPairCommand] = useState<string | null>(null);
   const [pairExpiresAt, setPairExpiresAt] = useState<number | null>(null);
+  const [pairOneLiner, setPairOneLiner] = useState("");
   const [pairCopied, setPairCopied] = useState(false);
+  const scriptUrl = api.aiSigninScriptUrl();
 
   // React 19 refuses to render a javascript: href, which is exactly what a
   // bookmarklet is, so the attribute is set on the DOM node directly. The
@@ -186,7 +188,14 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
         .replace(/\+/g, "-")
         .replace(/\//g, "_")
         .replace(/=+$/, "")}`;
-      setPairCommand(`python3 tools/chatgpt_signin.py --connect ${connect}`);
+      setPairCommand(`python3 chatgpt_signin.py --connect ${connect}`);
+      // Fetch-and-run, for anyone who'd rather not go via a Downloads
+      // folder. Deliberately writes the file rather than piping into
+      // python: running a script you haven't saved is a habit worth not
+      // teaching, and it leaves something to re-run later.
+      setPairOneLiner(
+        `curl -fsSL ${scriptUrl} -o chatgpt_signin.py && python3 chatgpt_signin.py --connect ${connect}`
+      );
       setPairExpiresAt(new Date(pairing.expires_at + "Z").getTime());
     } catch (err) {
       setAiError(err instanceof ApiError ? err.message : "Couldn't start the sign-in.");
@@ -198,6 +207,7 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
   function cancelPairing() {
     setPairCommand(null);
     setPairExpiresAt(null);
+    setPairOneLiner("");
     setPairCopied(false);
   }
 
@@ -663,11 +673,26 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
               <>
                 {pairCommand ? (
                   <div className="ai-pairing">
-                    <p className="hint">
-                      Run this <strong>on the computer you're browsing from</strong>, in a terminal
-                      in the app's folder:
-                    </p>
-                    <pre className="ai-signin-cmd">{pairCommand}</pre>
+                    <ol className="ai-pairing-steps">
+                      <li>
+                        <strong>Get the helper</strong> onto the computer you're browsing from.
+                        It's a single file, and it only uses what Python ships with.
+                        <div className="form-row">
+                          <a className="button-link" href={scriptUrl} download="chatgpt_signin.py">
+                            Download chatgpt_signin.py
+                          </a>
+                          <span className="hint">or fetch and run it in one line, below</span>
+                        </div>
+                      </li>
+                      <li>
+                        <strong>Run it</strong> in a terminal, in whichever folder you saved it to:
+                        <pre className="ai-signin-cmd">{pairCommand}</pre>
+                        <details>
+                          <summary>macOS or Linux: one line that does both</summary>
+                          <pre className="ai-signin-cmd">{pairOneLiner}</pre>
+                        </details>
+                      </li>
+                    </ol>
                     <div className="form-row">
                       <button
                         type="button"
@@ -711,8 +736,11 @@ export function AccountTab({ email, displayName, isPremium, onDisplayNameChange 
                     <details className="ai-manual">
                       <summary>Or paste a sign-in token by hand</summary>
                       <p className="hint">
-                        Run <code>python3 tools/chatgpt_signin.py</code> with no arguments and paste
-                        the line it prints. Same result, one more step &mdash; useful if this app
+                        <a href={scriptUrl} download="chatgpt_signin.py">
+                          Download the helper
+                        </a>{" "}
+                        and run <code>python3 chatgpt_signin.py</code> with no arguments, then paste
+                        the line it prints. Same result, one more step &mdash; useful when this app
                         isn't reachable from the machine you run the helper on.
                       </p>
                       <label className="espn-paste-label">

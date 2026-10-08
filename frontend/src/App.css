@@ -924,3 +924,44 @@ button:disabled {
   color: #8ab4f8;
   font-size: 0.85rem;
 }
+
+/* The two-step sign-in: get the helper, then run it. */
+.ai-pairing-steps {
+  margin: 0.25rem 0 0.5rem;
+  padding-left: 1.2rem;
+}
+
+.ai-pairing-steps > li {
+  margin-bottom: 0.8rem;
+}
+
+.ai-pairing-steps .form-row {
+  margin-top: 0.4rem;
+}
+
+.ai-pairing-steps details {
+  margin-top: 0.4rem;
+}
+
+.ai-pairing-steps summary {
+  cursor: pointer;
+  color: #8ab4f8;
+  font-size: 0.8rem;
+}
+
+/* An <a download> that has to read as a button next to real ones. */
+.button-link {
+  display: inline-block;
+  background: #2f6feb;
+  color: #fff;
+  border: 1px solid #2f6feb;
+  border-radius: 4px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  text-decoration: none;
+  line-height: 1.4;
+}
+
+.button-link:hover {
+  background: #3b7ef5;
+}

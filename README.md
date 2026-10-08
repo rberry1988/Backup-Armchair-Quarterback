@@ -118,13 +118,22 @@ teams, and scoring rules) and gives you three things every week:
   an API key.
 
   **Signing in with ChatGPT** is one click plus one command. Click **Sign in
-  with ChatGPT** in Settings → Account and the app shows you a line to run:
+  with ChatGPT** in Settings → Account and the app walks you through two
+  steps: download the helper (a button right there — it's one file, standard
+  library only, no checkout of this repo needed), then run it:
 
   ```bash
-  python3 tools/chatgpt_signin.py --connect bacq-pair-1....
+  python3 chatgpt_signin.py --connect bacq-pair-1....
   ```
 
-  Run that on the computer you're browsing from. It opens ChatGPT, waits for
+  On macOS or Linux there's a one-liner that does both:
+
+  ```bash
+  curl -fsSL https://your-app/api/ai-signin-script -o chatgpt_signin.py \
+    && python3 chatgpt_signin.py --connect bacq-pair-1....
+  ```
+
+  Run it on the computer you're browsing from. It opens ChatGPT, waits for
   you to approve, and hands the sign-in back to the app itself — the Settings
   page updates on its own, with nothing to copy afterwards.
 

@@ -1,8 +1,10 @@
 import asyncio
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -418,6 +420,41 @@ def set_ai_credentials(
     current_user.ai_model = model if model != ai_advisor.DEFAULT_MODELS[provider] else None
     db.commit()
     return _ai_credentials_status(current_user)
+
+
+# Where tools/chatgpt_signin.py lives, from backend/app/main.py. Same
+# derivation as deploy_service.REPO_ROOT, and correct for the standard
+# install because deploy/install.sh checks out the whole repository.
+SIGNIN_SCRIPT = Path(__file__).resolve().parent.parent.parent / "tools" / "chatgpt_signin.py"
+
+
+# Deliberately not behind a login. It's this project's own source file, the
+# same one anybody can read in the repository, and it carries no secrets —
+# the pairing token that makes a sign-in account-specific is passed to it as
+# an argument, never baked in. Keeping it open is what lets the UI offer a
+# plain download link and a one-line curl, neither of which can carry a
+# bearer token.
+@app.get("/api/ai-signin-script")
+def ai_signin_script():
+    """The ChatGPT sign-in helper, as a file to download and run."""
+    if not SIGNIN_SCRIPT.is_file():
+        # A backend-only deployment, or a checkout predating the script.
+        # Worth saying plainly rather than 404ing into a browser tab.
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "The sign-in helper isn't on this server. Whoever manages this instance should "
+                "update the app so tools/chatgpt_signin.py is present."
+            ),
+        )
+    return FileResponse(
+        SIGNIN_SCRIPT,
+        media_type="text/x-python",
+        filename="chatgpt_signin.py",
+        # Attachment rather than inline so browsers save it instead of
+        # rendering a wall of Python at someone.
+        content_disposition_type="attachment",
+    )
 
 
 # Pairing lets the sign-in helper deliver its result straight to this

@@ -126,6 +126,11 @@ export const api = {
       body: JSON.stringify({ espn_s2: espnS2, swid }),
     }),
 
+  // A plain URL, not a request: the download is a link and a curl command,
+  // neither of which can carry a bearer token. The script is public source
+  // either way — see main.py's ai_signin_script.
+  aiSigninScriptUrl: () => `${apiBaseUrl()}/api/ai-signin-script`,
+
   startAiPairing: () => request<AiPairing>("/api/auth/ai-pairing", { method: "POST" }),
 
   getAiCredentials: () => request<AiCredentialsStatus>("/api/auth/ai-credentials"),
